@@ -1,0 +1,13 @@
+{
+  "name": "sa-balai-resort-app",
+  "version": "2.3.0",
+  "private": true,
+  "description": "Native Desktop Shell for Sa Balai Lake View Resort",
+  "dependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  },
+  "scripts": {
+    "tauri": "tauri"
+  }
+}

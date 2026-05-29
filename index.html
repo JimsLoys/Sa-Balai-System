@@ -1,0 +1,2303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sa Balai Lake View Resort — Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* ── Reset ────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; }
+    body { font-family: 'DM Sans', sans-serif; background: #F8FAF8; overflow: hidden; color: #003E00; transition: background 0.25s ease, color 0.25s ease; }
+
+    /* ── Scrollbar ─────────────────────────────────── */
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #C8DCC8; border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: #A8C4A8; }
+
+    /* ── Form controls ─────────────────────────────── */
+    input[type=date]::-webkit-calendar-picker-indicator,
+    input[type=time]::-webkit-calendar-picker-indicator { filter: invert(0.4) sepia(1) hue-rotate(80deg) saturate(0.8); }
+    input[type=number]::-webkit-inner-spin-button { opacity: 0.3; }
+    option { background: #FFFFFF; color: #003E00; }
+
+    /* ── Animations ─────────────────────────────────── */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes pulse { 0%,100%{ opacity:1 } 50%{ opacity:0.4 } }
+    @keyframes fadeSlideUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+    /* ── App shell ──────────────────────────────────── */
+    .app-shell { display:flex; height:100vh; color:#003E00; font-family:'DM Sans',sans-serif; overflow:hidden; transition:background 0.25s ease,color 0.25s ease; }
+    .sidebar { width:220px; border-right:1px solid #E2EAE2; display:flex; flex-direction:column; flex-shrink:0; transition:background 0.25s ease,border-color 0.25s ease; }
+    .main-content { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; transition:background 0.25s ease; }
+    .page-scroll { flex:1; overflow-y:auto; padding:24px 26px; }
+
+    /* ── Grid layouts ───────────────────────────────── */
+    .dashboard-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; margin-bottom:18px; }
+    .two-col-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+    .order-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; min-height:420px; height:56vh; }
+    .pool-grid { display:grid; grid-template-columns:minmax(200px,220px) minmax(0,1fr); gap:16px; }
+    .pool-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; align-content:start; }
+    .inventory-table { min-width:680px; }
+    .responsive-table-wrap { overflow-x:auto; border-radius:12px; }
+
+    /* ── Responsive ─────────────────────────────────── */
+    @media (max-width: 760px) {
+      body { overflow:auto; }
+      .app-shell { flex-direction:column; min-height:100vh; height:auto; overflow:visible; }
+      .sidebar { width:100%; max-height:none; border-right:none; }
+      .sidebar nav { display:flex; overflow-x:auto; padding:8px 10px; }
+      .sidebar nav > * { flex:0 0 auto; }
+      .main-content { min-height:0; overflow:visible; }
+      .page-scroll { overflow:visible; padding:16px 14px 24px; }
+      .app-header { align-items:flex-start !important; gap:8px; padding:12px 14px !important; }
+      .dashboard-stats, .two-col-grid, .order-grid, .pool-grid { grid-template-columns:1fr; height:auto; }
+      .pool-cards { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+    // ══════════════════════════════════════════════════════════════
+    //  ☁️ SUPABASE CONFIG
+    // ══════════════════════════════════════════════════════════════
+    const SUPABASE_URL = 'https://ksbebkahisrevbirzmbf.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtzYmVia2FoaXNyZXZiaXJ6bWJmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2OTM4OTUsImV4cCI6MjA5NTI2OTg5NX0.P68Hh4JZA9H9En4kGy0S7alX5sqHSfin3LECK5qHB14';
+    const RECORD_ID  = 'sa_balai_main';
+    const SESSION_ID = Math.random().toString(36).slice(2, 10);
+    const isConfigured = !SUPABASE_URL.includes('YOUR_PROJECT_ID');
+    const db = isConfigured ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+
+    async function fetchFromCloud() {
+      if (!db) return null;
+      const { data, error } = await db.from('resort_state').select('data, updated_at').eq('id', RECORD_ID).maybeSingle();
+      if (error) throw error;
+      return data;
+    }
+    async function saveToCloud(state) {
+      if (!db) return;
+      const { error } = await db.from('resort_state').upsert({ id: RECORD_ID, data: state, last_session: SESSION_ID, updated_at: new Date().toISOString() });
+      if (error) throw error;
+    }
+    function timeSince(iso) {
+      if (!iso) return null;
+      const s = Math.floor((Date.now() - new Date(iso)) / 1000);
+      if (s < 10) return 'just now';
+      if (s < 60) return `${s}s ago`;
+      if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+      return `${Math.floor(s / 3600)}h ago`;
+    }
+
+    // ── localStorage helpers ─────────────────────────────────────
+    const LS_KEY = 'sabalai_v2';
+    const isPlainObject = (v) => v && typeof v === 'object' && !Array.isArray(v);
+    const safeArray = (v, fallback=[]) => Array.isArray(v) ? v : fallback;
+    const clampNumber = (v, min=0, fallback=0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(min, n) : fallback; };
+    const validDateValue = (value) => { if (!value || typeof value !== 'string') return false; const d = new Date(`${value}T00:00:00`); return !Number.isNaN(d.getTime()); };
+
+    const createStateSnapshot = (state) => JSON.stringify({
+      rooms: safeArray(state.rooms),
+      tables: safeArray(state.tables),
+      orders: safeArray(state.orders),
+      orderHistory: safeArray(state.orderHistory),
+      inventory: safeArray(state.inventory),
+      stockHistory: safeArray(state.stockHistory),
+      pool: isPlainObject(state.pool) ? state.pool : initPool,
+      cruises: safeArray(state.cruises),
+    });
+
+    function normalizeState(raw) {
+      if (!isPlainObject(raw)) return null;
+      const rooms = safeArray(raw.rooms, initRooms).map((r, idx) => ({
+        ...initRooms[idx % initRooms.length],
+        checkInTime: null, checkOutTime: null,
+        ...(isPlainObject(r) ? r : {})
+      })).filter(r => r.id && r.number);
+      const tables = safeArray(raw.tables, initTables).map((t, idx) => ({ ...initTables[idx % initTables.length], ...(isPlainObject(t) ? t : {}) })).filter(t => t.id && t.number);
+      const seenOrderIds = new Set();
+      const orders = safeArray(raw.orders, initOrders).filter(isPlainObject).map(o => ({
+        id: o.id || Date.now() + Math.random(), tableId: Number(o.tableId),
+        items: safeArray(o.items).filter(isPlainObject).map(i => ({ mid: Number(i.mid), qty: clampNumber(i.qty, 1, 1) })).filter(i => Number.isFinite(i.mid)),
+        status: ['preparing','serving','served','billed'].includes(o.status) ? o.status : 'preparing',
+        time: o.time || '',
+      })).filter(o => { if (!o.tableId || !o.items.length || seenOrderIds.has(o.id)) return false; seenOrderIds.add(o.id); return true; });
+
+      const seenHistoryIds = new Set();
+      const orderHistory = safeArray(raw.orderHistory, []).filter(isPlainObject).map((o, idx) => ({
+        id: o.id || Date.now() + idx, tableId: Number(o.tableId) || 0,
+        items: safeArray(o.items).filter(isPlainObject).map(i => ({ mid: Number(i.mid), qty: clampNumber(i.qty, 1, 1) })).filter(i => Number.isFinite(i.mid)),
+        status: o.status || 'billed', time: o.time || '', billedAt: o.billedAt || '',
+      })).filter(o => { if (seenHistoryIds.has(o.id)) return false; seenHistoryIds.add(o.id); return true; });
+
+      const inventory = safeArray(raw.inventory, initInventory).filter(isPlainObject).map((i, idx) => ({
+        id: i.id || Date.now() + idx, name: String(i.name || '').trim(), dept: i.dept || 'Housekeeping',
+        qty: clampNumber(i.qty, 0, 0), min: clampNumber(i.min, 0, 0), unit: String(i.unit || '').trim(),
+        archived: i.archived === true,
+      })).filter(i => i.name);
+      initInventory.forEach(seed => { if (!inventory.some(i => itemKey(i.name) === itemKey(seed.name))) inventory.push(seed); });
+
+      const stockHistory = safeArray(raw.stockHistory, initStockHistory).filter(isPlainObject).map((h, idx) => ({
+        id: h.id || Date.now() + idx, itemName: String(h.itemName || h.name || '').trim(), dept: h.dept || 'Bar',
+        qty: Number.isFinite(Number(h.qty)) ? Number(h.qty) : 0, unit: h.unit || '',
+        type: h.type || 'adjustment', note: h.note || '', time: h.time || new Date().toISOString(),
+      })).filter(h => h.itemName);
+
+      const poolRaw = isPlainObject(raw.pool) ? raw.pool : initPool;
+      const pool = {
+        ...initPool, ...poolRaw,
+        curGuests: clampNumber(poolRaw.curGuests, 0, initPool.curGuests),
+        maxCap: clampNumber(poolRaw.maxCap, 1, initPool.maxCap),
+        passes: safeArray(poolRaw.passes).filter(isPlainObject).map((p, idx) => ({ id: p.id || Date.now() + idx, name: String(p.name || 'Guest').trim(), count: clampNumber(p.count, 1, 1), time: p.time || '', type: p.type || 'Day Pass' })),
+        maintenance: safeArray(poolRaw.maintenance).filter(isPlainObject).map((m, idx) => ({ id: m.id || Date.now() + idx, task: String(m.task || '').trim(), date: validDateValue(m.date) ? m.date : today, status: m.status === 'done' ? 'done' : 'scheduled' })).filter(m => m.task),
+      };
+      pool.curGuests = Math.min(pool.curGuests, pool.maxCap);
+
+      // BUG-07 FIX: cost floor changed from 1500 to 0 — the normalizer must not
+      // artificially override a legitimately saved cost. The calculator enforces
+      // minimum 1500 at booking time; the normalizer just needs to prevent NaN.
+      const cruises = safeArray(raw.cruises, []).filter(isPlainObject).map(c => ({
+        id: c.id || Date.now() + Math.random(),
+        name: String(c.name || '').trim(),
+        date: c.date || today,
+        time: c.time || '08:00',
+        heads: clampNumber(c.heads, 1, 1),
+        cost: clampNumber(c.cost, 0, 0)
+      })).filter(c => c.name);
+
+      return { rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises, _savedAt: raw._savedAt || null };
+    }
+
+    function loadFromStorage() { try { const r = localStorage.getItem(LS_KEY); return r ? normalizeState(JSON.parse(r)) : null; } catch(e) { return null; } }
+    function saveToStorage(state) { try { localStorage.setItem(LS_KEY, JSON.stringify({ ...state, _savedAt: new Date().toISOString() })); } catch(e) {} }
+    function exportBackup(state) {
+      const clean = normalizeState(state) || state;
+      const data = JSON.stringify({ ...clean, _version:'2.3', _exportedAt: new Date().toISOString(), _resort:'Sa Balai Lake View Resort' }, null, 2);
+      const blob = new Blob([data], { type:'application/json' }); const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = `sabalai-backup-${new Date().toISOString().slice(0,10)}.json`; a.click(); URL.revokeObjectURL(url);
+    }
+    function importBackup(file, cb) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) { alert('❌ Invalid backup file.\nExpected a JSON object exported from Sa Balai.'); return; }
+          if (!parsed.rooms && !parsed.tables && !parsed.pool) { alert('❌ This file does not appear to be a Sa Balai backup.\nMissing fields.'); return; }
+          cb(parsed);
+        } catch(err) { alert('❌ Could not parse backup file.'); }
+      };
+      reader.readAsText(file);
+    }
+
+    // ── Icons ────────────────────────────────────────────────────
+    const PATHS = {
+      LayoutDashboard:`<rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="3" y="15" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/>`,
+      BedDouble:`<path d="M2 20v-8a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v8"/><path d="M4 10V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4"/><path d="M12 10v4"/><path d="M2 18h20"/>`,
+      UtensilsCrossed:`<path d="m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"/><path d="M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"/><path d="m2.1 21.8 6.4-6.3"/><path d="m19 5-7 7"/>`,
+      Waves:`<path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1"/>`,
+      Package:`<path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/>`,
+      Plus:`<path d="M5 12h14"/><path d="M12 5v14"/>`,
+      X:`<path d="M18 6 6 18"/><path d="m6 6 12 12"/>`,
+      Check:`<path d="M20 6 9 17l-5-5"/>`,
+      AlertTriangle:`<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>`,
+      Calendar:`<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/>`,
+      LogIn:`<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" x2="3" y1="12" y2="12"/>`,
+      LogOut:`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/>`,
+      Edit:`<path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/>`,
+      Trash2:`<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>`,
+      Info:`<circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/>`,
+      Download:`<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/>`,
+      Upload:`<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>`,
+      Database:`<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/>`,
+      Cloud:`<path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/>`,
+      RefreshCw:`<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>`,
+      Clock:`<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>`,
+      Moon:`<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`,
+      Sun:`<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>`,
+      History:`<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>`,
+      Ship:`<path d="M2 21h20M19.3 14.8l-1.3-4.1c-.2-.7-.9-1.2-1.6-1.2H7.6c-.7 0-1.4.5-1.6 1.2L4.7 14.8M12 2v6M9 4h6M4 21l1.1-4.7c.2-.7.8-1.3 1.6-1.3h10.6c.7 0 1.4.6 1.6 1.3L20 21"/>`
+    };
+    const Icon = ({ name, size=16, color="currentColor" }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color}
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        dangerouslySetInnerHTML={{ __html: PATHS[name]||"" }} />
+    );
+
+    // ── Theme ─────────────────────────────────────────────────────
+    let BG    = "#F8FAF8";
+    let SURF  = "#FFFFFF";
+    let SURF2 = "#F2F5F2";
+    let BORD  = "#E2EAE2";
+    let ACC   = "#007A00";
+    let T1    = "#003E00";
+    let T2    = "#2D5A2D";
+    let T3    = "#7A9E7A";
+
+    let SYNC_DOT   = { idle:'#7A9E7A', syncing:'#2563EB', synced:'#007A00', offline:'#B8860B', error:'#C0392B', unconfigured:'#7A9E7A' };
+    const SYNC_LABEL = { idle:'Waiting…', syncing:'Syncing…', synced:'Cloud synced ✓', offline:'Offline', error:'Sync error', unconfigured:'Not configured' };
+
+    // ── Constants ─────────────────────────────────────────────────
+    const today = new Date().toISOString().split("T")[0];
+    const ROLES = ["Manager","Front Desk","Restaurant Staff","Housekeeping"];
+
+    const MENU = [
+      { id:1,  name:"Crispy Tilapia Finger",      price:350, cat:"Tilapia" },
+      { id:2,  name:"Sweet Chili Tilapia Stick",  price:350, cat:"Tilapia" },
+      { id:3,  name:"Ginataang Tilapia",          price:350, cat:"Tilapia" },
+      { id:4,  name:"Grilled / Sugba Tilapia",    price:350, cat:"Tilapia" },
+      { id:5,  name:"Chicharon Tilapia",          price:350, cat:"Tilapia" },
+      { id:6,  name:"Deep Fried Tilapia",         price:350, cat:"Tilapia" },
+      { id:7,  name:"Paksiw Tilapia",             price:350, cat:"Tilapia" },
+      { id:8,  name:"Nilagpang Tilapia",          price:350, cat:"Tilapia" },
+      { id:9,  name:"Tilapia Sisig",              price:350, cat:"Tilapia" },
+      { id:10, name:"Daing Tilapia",              price:350, cat:"Tilapia" },
+      { id:11, name:"Pinaputok Tilapia",          price:350, cat:"Tilapia" },
+      { id:12, name:"Tilapia Kinilaw",            price:350, cat:"Tilapia" },
+      { id:13, name:"Grilled Panga/Belly Tuna (per 100g)", price:85,  cat:"Tuna" },
+      { id:14, name:"Sinigang/Tinola Tuna (per 100g)",     price:85,  cat:"Tuna" },
+      { id:15, name:"Crispy Tuna Belly",          price:350, cat:"Tuna" },
+      { id:16, name:"Tuna Sisig",                  price:350, cat:"Tuna" },
+      { id:17, name:"Tuna Kinilaw",                price:350, cat:"Tuna" },
+      { id:18, name:"Grilled / Sugba Hito",       price:350, cat:"Hito" },
+      { id:19, name:"Fried Hito",                  price:350, cat:"Hito" },
+      { id:20, name:"Paksiw Hito",                 price:350, cat:"Hito" },
+      { id:21, name:"Ginataang Hito",              price:350, cat:"Hito" },
+      { id:22, name:"Nilagpang Hito",              price:350, cat:"Hito" },
+      { id:23, name:"Steamed Pompano",             price:500, cat:"Pompano" },
+      { id:24, name:"Sinigang Pompano",            price:500, cat:"Pompano" },
+      { id:25, name:"Tinola Pompano",              price:500, cat:"Pompano" },
+      { id:26, name:"Sinigang Shrimp",             price:375, cat:"Shrimp" },
+      { id:27, name:"Salt & Pepper Shrimp",       price:375, cat:"Shrimp" },
+      { id:28, name:"Buttered Shrimp",             price:375, cat:"Shrimp" },
+      { id:29, name:"Garlic Shrimp",               price:375, cat:"Shrimp" },
+      { id:30, name:"Nilasing Shrimp",             price:375, cat:"Shrimp" },
+      { id:31, name:"Native Chicken Tinola",      price:380, cat:"Chicken" },
+      { id:32, name:"Native Chicken Nilagpang",   price:380, cat:"Chicken" },
+      { id:33, name:"Native Chicken Adobo",       price:380, cat:"Chicken" },
+      { id:34, name:"Garlic Chicken",              price:350, cat:"Chicken" },
+      { id:35, name:"Buffalo Chicken",             price:350, cat:"Chicken" },
+      { id:36, name:"Buttered Chicken",            price:350, cat:"Chicken" },
+      { id:37, name:"Chicken Adobo",               price:350, cat:"Chicken" },
+      { id:38, name:"Chicken Sisig",               price:350, cat:"Chicken" },
+      { id:39, name:"Ampalaya Beef Steak",         price:380, cat:"Beef" },
+      { id:40, name:"Oyster Glaze Beef Steak",     price:380, cat:"Beef" },
+      { id:41, name:"Bistek Tagalog",              price:380, cat:"Beef" },
+      { id:42, name:"Chop Suey (Chicken)",         price:300, cat:"Vegetables" },
+      { id:43, name:"Chop Suey (Seafood)",         price:300, cat:"Vegetables" },
+      { id:44, name:"Pinakbet (Fish)",             price:300, cat:"Vegetables" },
+      { id:45, name:"Pinakbet (Seafood)",          price:300, cat:"Vegetables" },
+      { id:46, name:"Pinakbet (Beef)",             price:300, cat:"Vegetables" },
+      { id:47, name:"Corn Soup",                   price:200, cat:"Soup" },
+      { id:48, name:"Mushroom Soup",               price:200, cat:"Soup" },
+      { id:49, name:"Sotanghon Soup",              price:230, cat:"Soup" },
+      { id:50, name:"Garlic Rice Platter",         price:140, cat:"Rice" },
+      { id:51, name:"Fried Rice Platter",          price:140, cat:"Rice" },
+      { id:52, name:"Plain Rice",                  price:20,  cat:"Rice" },
+      { id:53, name:"Squid Calamares",             price:350, cat:"Short Order" },
+      { id:54, name:"Lomi",                        price:230, cat:"Short Order" },
+      { id:55, name:"Canton Guisado",              price:230, cat:"Short Order" },
+      { id:56, name:"Bijon Guisado",               price:230, cat:"Short Order" },
+      { id:57, name:"Sotanghon Guisado",           price:230, cat:"Short Order" },
+      { id:58, name:"Toasted Bread",               price:85,  cat:"Short Order" },
+      { id:59, name:"Kropek",                      price:100, cat:"Short Order" },
+      { id:60, name:"French Fries",                price:100, cat:"Short Order" },
+      { id:61, name:"Lumpia",                      price:100, cat:"Short Order" },
+      { id:62, name:"Breakfast Set A — Daing Tilapia",   price:150, cat:"Value Meals" },
+      { id:63, name:"Breakfast Set B — Corned Beef",     price:150, cat:"Value Meals" },
+      { id:64, name:"Breakfast Set C — Tuna Tempura",    price:150, cat:"Value Meals" },
+      { id:65, name:"Breakfast Set D — Tilapia Tempura", price:150, cat:"Value Meals" },
+      { id:66, name:"Chicken Barbecue Meal",              price:150, cat:"Value Meals" },
+      { id:67, name:"Bikers / Runners Meal",              price:150, cat:"Value Meals" },
+      { id:68, name:"Barkada Platter (5-6 pax)",  price:599, cat:"Platters" },
+      { id:69, name:"Halo-Halo",                   price:110, cat:"Shakes" },
+      { id:70, name:"Choco Kisses",                price:90,  cat:"Shakes" },
+      { id:71, name:"Choco Mousse",                price:90,  cat:"Shakes" },
+      { id:72, name:"Cookies and Cream",           price:90,  cat:"Shakes" },
+      { id:73, name:"Buko Pandan Shake",           price:90,  cat:"Shakes" },
+      { id:74, name:"Mango Shake",                 price:90,  cat:"Shakes" },
+      { id:75, name:"Watermelon Shake",            price:90,  cat:"Shakes" },
+      { id:76, name:"Melon Shake",                 price:90,  cat:"Shakes" },
+      { id:77, name:"Pineapple Shake",             price:90,  cat:"Shakes" },
+      { id:78, name:"Native Coffee",               price:75,  cat:"Coffee" },
+      { id:79, name:"3-in-1 Coffee",               price:25,  cat:"Coffee" },
+      { id:80, name:"Stick Coffee",                price:15,  cat:"Coffee" },
+      { id:81, name:"Spanish Latte (Iced)",        price:89,  cat:"Coffee" },
+      { id:82, name:"Spanish Latte (Hot)",         price:99,  cat:"Coffee" },
+      { id:83, name:"Vanilla Latte (Iced)",        price:109, cat:"Coffee" },
+      { id:84, name:"Vanilla Latte (Hot)",         price:119, cat:"Coffee" },
+      { id:85, name:"Mocha Coffee (Iced)",         price:109, cat:"Coffee" },
+      { id:86, name:"Mocha Coffee (Hot)",          price:119, cat:"Coffee" },
+      { id:87, name:"Caramel Coffee (Iced)",       price:109, cat:"Coffee" },
+      { id:88, name:"Caramel Coffee (Hot)",        price:119, cat:"Coffee" },
+      { id:89, name:"Salted Caramel Coffee (Iced)",price:109,cat:"Coffee" },
+      { id:90, name:"Salted Caramel Coffee (Hot)", price:119,cat:"Coffee" },
+      { id:91, name:"Hazelnut Coffee (Iced)",      price:109, cat:"Coffee" },
+      { id:92, name:"Hazelnut Coffee (Hot)",       price:119, cat:"Coffee" },
+      { id:93, name:"Americano (Iced)",            price:85,  cat:"Coffee" },
+      { id:94, name:"Americano (Hot)",            price:90,  cat:"Coffee" },
+      { id:95, name:"Dirty Matcha (Iced)",         price:109, cat:"Coffee" },
+      { id:96, name:"Dirty Matcha (Hot)",         price:119, cat:"Coffee" },
+      { id:97, name:"Hot Choco",                   price:75,  cat:"Non-Coffee" },
+      { id:98, name:"Milo",                        price:25,  cat:"Non-Coffee" },
+      { id:99, name:"Bear Brand",                  price:55,  cat:"Non-Coffee" },
+      { id:100,name:"Hazelnut Milk (Iced)",        price:95,  cat:"Non-Coffee" },
+      { id:101,name:"Hazelnut Milk (Hot)",         price:105, cat:"Non-Coffee" },
+      { id:102,name:"Matcha (Iced)",               price:99,  cat:"Non-Coffee" },
+      { id:103,name:"Matcha (Hot)",                price:109, cat:"Non-Coffee" },
+      { id:104,name:"Mocha Non-Coffee (Iced)",     price:95,  cat:"Non-Coffee" },
+      { id:105,name:"Mocha Non-Coffee (Hot)",     price:105, cat:"Non-Coffee" },
+      { id:106,name:"Caramel Non-Coffee (Iced)",   price:99,  cat:"Non-Coffee" },
+      { id:107,name:"Caramel Non-Coffee (Hot)",   price:105, cat:"Non-Coffee" },
+      { id:108,name:"Salted Caramel Non-Coffee (Iced)",price:99,cat:"Non-Coffee" },
+      { id:109,name:"Salted Caramel Non-Coffee (Hot)", price:105,cat:"Non-Coffee" },
+      { id:110,name:"Iced Tea Pitcher",           price:120, cat:"Drinks" },
+      { id:111,name:"1.5L Soda (Coke/Sprite/Royal)",price:130,cat:"Drinks" },
+      { id:112,name:"Fresh Fruit Juice",           price:150, cat:"Drinks" },
+      { id:113,name:"Juice in Can",                price:70,  cat:"Drinks" },
+      { id:114,name:"C2",                          price:25,  cat:"Drinks" },
+      { id:115,name:"Gatorade",                    price:70,  cat:"Drinks" },
+      { id:116,name:"Cali",                        price:75,  cat:"Drinks" },
+      { id:117,name:"Pomelo Fizz",                 price:69,  cat:"Mocktails" },
+      { id:118,name:"Crimson Red",                 price:75,  cat:"Mocktails" },
+      { id:119,name:"Kasisimon",                   price:85,  cat:"Mocktails" },
+      { id:120,name:"Fundador 1L",                 price:680, cat:"Alcohol" },
+      { id:121,name:"Tequila",                     price:480, cat:"Alcohol" },
+      { id:122,name:"Tanduay Dark",               price:180, cat:"Alcohol" },
+      { id:123,name:"Tanduay Light",              price:180, cat:"Alcohol" },
+      { id:124,name:"Tanduay Select",             price:180, cat:"Alcohol" },
+      { id:125,name:"Emperador",                  price:180, cat:"Alcohol" },
+      { id:126,name:"Genebra",                    price:180, cat:"Alcohol" },
+      { id:127,name:"GSM Blue",                   price:230, cat:"Alcohol" },
+      { id:128,name:"The Bar",                    price:230, cat:"Alcohol" },
+      { id:129,name:"Red Horse 1L",               price:180, cat:"Alcohol" },
+      { id:130,name:"San Miguel Beer 1L",          price:180, cat:"Alcohol" },
+      { id:131,name:"Smirnoff Mule",              price:90,  cat:"Alcohol" },
+      { id:132,name:"Pale Pilsen",                price:75,  cat:"Alcohol" },
+      { id:133,name:"Stallion",                   price:75,  cat:"Alcohol" },
+      { id:134,name:"San Mig Light",              price:75,  cat:"Alcohol" },
+      { id:135,name:"San Mig Light Apple",        price:75,  cat:"Alcohol" },
+      { id:136,name:"Soju",                        price:109, cat:"Alcohol" },
+      { id:137,name:"Calamansi Mojito",           price:99,  cat:"Cocktails" },
+      { id:138,name:"Blue Margarita",              price:99,  cat:"Cocktails" },
+      { id:139,name:"Tropical Sunrise",           price:109, cat:"Cocktails" },
+      { id:140,name:"Crimson Cariñosa",           price:99,  cat:"Cocktails" },
+      { id:141,name:"Sariwang Apoy",              price:99,  cat:"Cocktails" },
+      { id:142,name:"Novelino",                   price:430, cat:"Wines" },
+      { id:143,name:"Carlo Rossi",                price:430, cat:"Wines" },
+      { id:144,name:"May (Non-Alcoholic Wine)",   price:350, cat:"Wines" },
+    ];
+
+    const MENU_CATS = ["All","Tilapia","Tuna","Hito","Pompano","Shrimp","Chicken","Beef","Vegetables","Soup","Rice","Short Order","Value Meals","Platters","Shakes","Coffee","Non-Coffee","Drinks","Mocktails","Alcohol","Cocktails","Wines"];
+    const BAR_MENU_CATS = ["Coffee","Non-Coffee","Drinks","Mocktails","Alcohol","Cocktails","Wines"];
+    const BAR_RECIPE_UNITS = { ml:"ml", grams:"g", pcs:"pc" };
+    const BAR_RECIPES = {
+      78:[{name:"Coffee Beans",qty:12,unit:"grams"},{name:"Full Cream Milk",qty:60,unit:"ml"}],
+      81:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Condense Milk",qty:25,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      82:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Condense Milk",qty:25,unit:"ml"}],
+      83:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"French Vanilla Syrup",qty:25,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      84:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"French Vanilla Syrup",qty:25,unit:"ml"}],
+      85:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Mocha Syrup",qty:25,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      86:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Mocha Syrup",qty:25,unit:"ml"}],
+      87:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Caramel Syrup",qty:25,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      88:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Caramel Syrup",qty:25,unit:"ml"}],
+      89:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Salted Caramel Syrup",qty:25,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      90:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Salted Caramel Syrup",qty:25,unit:"ml"}],
+      91:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Hazelnut Syrup",qty:25,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      92:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Full Cream Milk",qty:180,unit:"ml"},{name:"Hazelnut Syrup",qty:25,unit:"ml"}],
+      93:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Ice",qty:120,unit:"grams"}],
+      94:[{name:"Coffee Beans",qty:18,unit:"grams"}],
+      95:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Matcha powder",qty:1,unit:"pcs"},{name:"Full Cream Milk",qty:160,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      96:[{name:"Coffee Beans",qty:18,unit:"grams"},{name:"Matcha powder",qty:1,unit:"pcs"},{name:"Full Cream Milk",qty:160,unit:"ml"}],
+      100:[{name:"Hazelnut Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      101:[{name:"Hazelnut Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"}],
+      102:[{name:"Matcha powder",qty:1,unit:"pcs"},{name:"Full Cream Milk",qty:200,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      103:[{name:"Matcha powder",qty:1,unit:"pcs"},{name:"Full Cream Milk",qty:200,unit:"ml"}],
+      104:[{name:"Mocha Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      105:[{name:"Mocha Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"}],
+      106:[{name:"Caramel Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      107:[{name:"Caramel Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"}],
+      108:[{name:"Salted Caramel Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      109:[{name:"Salted Caramel Syrup",qty:25,unit:"ml"},{name:"Full Cream Milk",qty:200,unit:"ml"}],
+      117:[{name:"Pomelo Juice powder",qty:1,unit:"pcs"},{name:"Soda Water",qty:180,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      118:[{name:"Grenadine",qty:25,unit:"ml"},{name:"Soda Water",qty:180,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      119:[{name:"Calamansi Juice powder",qty:1,unit:"pcs"},{name:"Soda Water",qty:180,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      121:[{name:"Tequila",qty:60,unit:"ml"}],
+      122:[{name:"Rum",qty:60,unit:"ml"}],
+      126:[{name:"Gin",qty:60,unit:"ml"}],
+      137:[{name:"Rum",qty:45,unit:"ml"},{name:"Calamansi",qty:2,unit:"pcs"},{name:"Soda Water",qty:120,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      138:[{name:"Tequila",qty:45,unit:"ml"},{name:"Blue Curacao",qty:20,unit:"ml"},{name:"Lime Juice",qty:20,unit:"ml"},{name:"Pulverize Salt",qty:2,unit:"grams"},{name:"Ice",qty:120,unit:"grams"}],
+      139:[{name:"Tequila",qty:45,unit:"ml"},{name:"Grenadine",qty:20,unit:"ml"},{name:"Orange Juice powder",qty:1,unit:"pcs"},{name:"Ice",qty:120,unit:"grams"}],
+      140:[{name:"Gin",qty:45,unit:"ml"},{name:"Grenadine",qty:20,unit:"ml"},{name:"Lime Juice",qty:20,unit:"ml"},{name:"Ice",qty:120,unit:"grams"}],
+      141:[{name:"Tequila",qty:45,unit:"ml"},{name:"Chili Powder",qty:1,unit:"grams"},{name:"Lime Juice",qty:20,unit:"ml"},{name:"Tajin bottle",qty:2,unit:"grams"},{name:"Ice",qty:120,unit:"grams"}],
+    };
+
+    // ── Init data ─────────────────────────────────────────────────
+    const initRooms = [
+      { id:1,  number:"Cuarto 7",   type:"For 2 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:1450 },
+      { id:2,  number:"Cuarto 8",   type:"For 2 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:1450 },
+      { id:3,  number:"Casita 1",   type:"For 2 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:1450 },
+      { id:4,  number:"Casita 2",   type:"For 2 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:1450 },
+      { id:5,  number:"Casita 3",   type:"For 2 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:1450 },
+      { id:6,  number:"Cuarto 5",   type:"For 3 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:2175 },
+      { id:7,  number:"Cuarto 6",   type:"For 3 / AC",    status:"available", guest:null, checkIn:null, checkOut:null, rate:2175 },
+      { id:8,  number:"Barkada 3",  type:"For 4-5 / AC",  status:"available", guest:null, checkIn:null, checkOut:null, rate:3750 },
+      { id:9,  number:"Barkada 4",  type:"For 4-5 / AC",  status:"available", guest:null, checkIn:null, checkOut:null, rate:3750 },
+      { id:10, number:"Casa Vista", type:"For 4-5 / AC",  status:"available", guest:null, checkIn:null, checkOut:null, rate:3750 },
+      { id:11, number:"Barkada 1",  type:"For 6-12",      status:"available", guest:null, checkIn:null, checkOut:null, rate:4450 },
+      { id:12, number:"Pasilungan", type:"For 6-12",      status:"available", guest:null, checkIn:null, checkOut:null, rate:4000 },
+      { id:13, number:"Barkada 2",  type:"For 6-12",      status:"available", guest:null, checkIn:null, checkOut:null, rate:6000 },
+      { id:14, number:"Casa Fuerte",type:"For 6-12",      status:"available", guest:null, checkIn:null, checkOut:null, rate:5600 },
+      { id:15, number:"Pahuwayan",  type:"For 16-20 / AC",status:"available", guest:null, checkIn:null, checkOut:null, rate:12000 },
+      { id:16, number:"Nanay 1",    type:"For 16-20 / AC",status:"available", guest:null, checkIn:null, checkOut:null, rate:8200 },
+    ];
+    const initTables = [
+      { id:1, number:1, cap:2, status:"available", res:null },
+      { id:2, number:2, cap:2, status:"occupied",  res:{ guest:"Walk-in", time:"12:30", endTime:"" } },
+      { id:3, number:3, cap:4, status:"reserved",  res:{ guest:"Santos, 4 pax", time:"13:00", endTime:"15:00" } },
+      { id:4, number:4, cap:4, status:"available", res:null },
+      { id:5, number:5, cap:4, status:"occupied",  res:{ guest:"Walk-in", time:"12:00", endTime:"" } },
+      { id:6, number:6, cap:6, status:"available", res:null },
+      { id:7, number:7, cap:6, status:"reserved",  res:{ guest:"Reyes Group", time:"18:00", endTime:"20:00" } },
+      { id:8, number:8, cap:4, status:"available", res:null },
+      { id:9, number:9, cap:2, status:"available", res:null },
+      { id:10,number:10,cap:6, status:"occupied",  res:{ guest:"Walk-in", time:"11:45", endTime:"" } },
+    ];
+    const initOrders = [
+      { id:1, tableId:2,  items:[{ mid:4, qty:2 },{ mid:110, qty:2 }],                       status:"serving",   time:"12:30" },
+      { id:2, tableId:5,  items:[{ mid:26, qty:1 },{ mid:36, qty:1 },{ mid:129, qty:3 }],    status:"preparing", time:"12:05" },
+      { id:3, tableId:10, items:[{ mid:15, qty:2 },{ mid:74, qty:2 }],                       status:"served",    time:"11:45" },
+    ];
+    const initOrderHistory = [];
+    const initInventory = [
+      { id:1,  name:"Bath Towels",        dept:"Housekeeping", qty:45,  min:20, unit:"pcs"   },
+      { id:2,  name:"Bed Sheets (Queen)", dept:"Housekeeping", qty:12,  min:16, unit:"sets"  },
+      { id:3,  name:"Shampoo (Amenity)",  dept:"Housekeeping", qty:200, min:50, unit:"btls"  },
+      { id:4,  name:"Rice (50kg sack)",   dept:"Restaurant",   qty:8,   min:5,  unit:"sacks" },
+      { id:5,  name:"Cooking Oil (5L)",   dept:"Restaurant",   qty:3,   min:5,  unit:"cans"  },
+      { id:6,  name:"San Miguel Beer",    dept:"Restaurant",   qty:10,  min:5,  unit:"cases" },
+      { id:7,  name:"Chlorine",           dept:"Pool",         qty:2,   min:4,  unit:"drums" },
+      { id:8,  name:"Pool Noodles",       dept:"Pool",         qty:18,  min:10, unit:"pcs"   },
+      { id:9,  name:"Life Jackets",       dept:"Pool",         qty:8,   min:8,  unit:"pcs"   },
+      { id:10, name:"Toilet Paper",       dept:"Housekeeping", qty:150, min:60, unit:"rolls" },
+      { id:11, name:"Drinking Water",     dept:"Hotel",        qty:40,  min:30, unit:"gal"   },
+      { id:12, name:"Laundry Detergent",  dept:"Housekeeping", qty:5,   min:3,  unit:"kg"    },
+      { id:1001,name:"Coffee Beans",      dept:"Bar", qty:500, min:120, unit:"grams" },
+      { id:1002,name:"Dulagan Coffee powder",dept:"Bar", qty:0, min:100,unit:"grams" },
+      { id:1003,name:"Full Cream Milk",   dept:"Bar", qty:4750,min:1000,unit:"ml"   },
+      { id:1004,name:"Condense Milk",     dept:"Bar", qty:350, min:100, unit:"ml"   },
+      { id:1005,name:"Hazelnut Syrup",    dept:"Bar", qty:0,   min:250, unit:"ml"   },
+      { id:1006,name:"French Vanilla Syrup",dept:"Bar",qty:1000,min:250,unit:"ml"  },
+      { id:1007,name:"Caramel Syrup",     dept:"Bar", qty:560, min:250, unit:"ml"   },
+      { id:1008,name:"Salted Caramel Syrup",dept:"Bar",qty:750,min:250, unit:"ml"  },
+      { id:1009,name:"Mocha Syrup",       dept:"Bar", qty:1125,min:250, unit:"ml"   },
+      { id:1010,name:"Matcha powder",     dept:"Bar", qty:30,  min:8,   unit:"pcs"  },
+      { id:1011,name:"Strawberry Jam",    dept:"Bar", qty:0,   min:100, unit:"grams"},
+      { id:1012,name:"Corn Syrup",        dept:"Bar", qty:750, min:200, unit:"ml"   },
+      { id:1013,name:"Ice",               dept:"Bar", qty:2000,min:1000,unit:"grams"},
+      { id:1014,name:"Gin",               dept:"Bar", qty:0,   min:250, unit:"ml"   },
+      { id:1015,name:"Rum",               dept:"Bar", qty:950, min:250, unit:"ml"   },
+      { id:1016,name:"Tequila",           dept:"Bar", qty:0,   min:250, unit:"ml"   },
+      { id:1017,name:"Whiskey",           dept:"Bar", qty:250, min:250, unit:"ml"   },
+      { id:1018,name:"Orange Juice powder",dept:"Bar",qty:0,   min:5,   unit:"pcs"  },
+      { id:1019,name:"Pomelo Juice powder",dept:"Bar",qty:6,   min:5,   unit:"pcs"  },
+      { id:1020,name:"Calamansi Juice powder",dept:"Bar",qty:2,min:5,   unit:"pcs"  },
+      { id:1021,name:"Soda Water",        dept:"Bar", qty:0,   min:1000,unit:"ml"   },
+      { id:1022,name:"Grenadine",         dept:"Bar", qty:750, min:250, unit:"ml"   },
+      { id:1023,name:"Blue Curacao",      dept:"Bar", qty:1750,min:250, unit:"ml"   },
+      { id:1024,name:"Lime Juice",        dept:"Bar", qty:1125,min:250, unit:"ml"   },
+      { id:1025,name:"Pulverize Salt",    dept:"Bar", qty:150, min:50,  unit:"grams"},
+      { id:1026,name:"Chili Powder",      dept:"Bar", qty:0,   min:20,  unit:"grams"},
+      { id:1027,name:"Tajin bottle",      dept:"Bar", qty:150, min:40,  unit:"grams"},
+      { id:1028,name:"Cinamon",           dept:"Bar", qty:200, min:40,  unit:"grams"},
+      { id:1029,name:"Dried Lemon",       dept:"Bar", qty:0,   min:10,  unit:"pcs"  },
+      { id:1030,name:"Dried Orange",      dept:"Bar", qty:300, min:50,  unit:"grams"},
+      { id:1031,name:"Cucumber",          dept:"Bar", qty:1,   min:3,   unit:"pcs"  },
+      { id:1032,name:"Calamansi",         dept:"Bar", qty:10,  min:10,  unit:"pcs"  },
+      { id:1033,name:"Lemon",             dept:"Bar", qty:0,   min:5,   unit:"pcs"  },
+      { id:1034,name:"Straw (black)",     dept:"Bar", qty:50,  min:25,  unit:"pcs"  },
+      { id:1035,name:"Papercup with Lid (12oz)",dept:"Bar",qty:50,min:25,unit:"pcs" },
+      { id:1036,name:"Plastic Cup (12oz)",dept:"Bar", qty:100, min:40,  unit:"pcs"  },
+    ];
+    const initStockHistory = [
+      { id:1, itemName:"Bar inventory seed", dept:"Bar", qty:0, unit:"", type:"system", note:"Loaded beverage counter inventory", time:new Date().toISOString() },
+    ];
+    const initPool = {
+      maxCap:40, curGuests:12,
+      passes:[
+        { id:1, name:"Santos Family", count:4, time:"09:30", type:"Hotel Guest" },
+        { id:2, name:"Walk-in Group", count:6, time:"10:15", type:"Day Pass" },
+        { id:3, name:"Cruz, Maria",   count:2, time:"11:00", type:"Hotel Guest" },
+      ],
+      maintenance:[
+        { id:1, task:"pH Level Check",      date:"2026-04-12", status:"done" },
+        { id:2, task:"Chlorine Treatment", date:"2026-04-12", status:"done" },
+        { id:3, task:"Filter Cleaning",    date:"2026-04-14", status:"scheduled" },
+        { id:4, task:"Pool Light Check",   date:"2026-04-15", status:"scheduled" },
+      ],
+    };
+
+    // ── Utility functions ─────────────────────────────────────────
+    // BUG-06 / BUG-09 FIX: safeArray guard prevents .reduce() crash on null/undefined items
+    const calcTotal = (items) => safeArray(items).reduce((s, i) => { const m = getMenuItem(i.mid); return s + (m && m.price > 0 ? m.price * i.qty : 0); }, 0);
+    const itemKey = (name) => String(name || '').trim().toLowerCase();
+    const isBarMenuItem = (menuId) => { const m = getMenuItem(menuId); return m && BAR_MENU_CATS.includes(m.cat); };
+    const getRecipe = (menuId) => BAR_RECIPES[Number(menuId)] || [];
+    const getStockColor = (item) => { if (!item || item.qty <= 0) return '#C0392B'; if (item.qty < item.min) return '#B8860B'; return '#007A00'; };
+    // BUG-04 / BUG-05 FIX: exclude archived items from recipe stock lookups
+    function getInventoryIngredient(inventory, name) { const key = itemKey(name); return inventory.find(i => !i.archived && itemKey(i.name) === key && i.dept === 'Bar') || inventory.find(i => !i.archived && itemKey(i.name) === key); }
+    function getRecipeRequirements(orderItems) {
+      const req = {};
+      safeArray(orderItems).forEach(item => { const qty = clampNumber(item.qty, 1, 1); getRecipe(item.mid).forEach(ing => { const key = itemKey(ing.name); if (!req[key]) req[key] = { ...ing, qty:0 }; req[key].qty += ing.qty * qty; }); });
+      return Object.values(req);
+    }
+    function getRecipeIssues(orderItems, inventory) {
+      return getRecipeRequirements(orderItems).map(req => { const stock = getInventoryIngredient(inventory, req.name); const available = stock ? clampNumber(stock.qty, 0, 0) : 0; return { ...req, available, missing:!stock, itemId:stock?.id }; }).filter(req => req.missing || req.available < req.qty);
+    }
+    // BUG-04 FIX: never deduct from archived items — they are retired and must not be mutated
+    function applyRecipeConsumption(inventory, orderItems) {
+      const reqs = getRecipeRequirements(orderItems);
+      return inventory.map(item => {
+        if (item.archived) return item;
+        const req = reqs.find(r => itemKey(r.name) === itemKey(item.name) && item.dept === 'Bar');
+        return req ? { ...item, qty: Math.max(0, clampNumber(item.qty, 0, 0) - req.qty) } : item;
+      });
+    }
+    function buildConsumptionHistory(orderItems, inventorySnapshot, tableId) {
+      const now = new Date().toISOString();
+      return getRecipeRequirements(orderItems).map((req, idx) => ({ id: Date.now() + idx, itemName: req.name, dept: 'Bar', qty: -req.qty, unit: req.unit, type: 'consumption', note: `Table ${tableId} drink order`, time: now }));
+    }
+
+    function parseTimeToMinutes(timeStr) {
+      if (!timeStr) return -1;
+      const parts = timeStr.split(':').map(Number);
+      return (parts[0] || 0) * 60 + (parts[1] || 0);
+    }
+    function timesOverlap(start1, end1, start2, end2) {
+      const s1 = parseTimeToMinutes(start1); if (s1 < 0) return false;
+      const s2 = parseTimeToMinutes(start2); if (s2 < 0) return false;
+      const e1 = end1 ? parseTimeToMinutes(end1) : s1 + 120;
+      const e2 = end2 ? parseTimeToMinutes(end2) : s2 + 120;
+      return s1 < e2 && s2 < e1;
+    }
+    function datesOverlap(s1, e1, s2, e2) {
+      if (!s1 || !e1 || !s2 || !e2) return false;
+      return new Date(s1 + 'T00:00:00') < new Date(e2 + 'T00:00:00') && new Date(s2 + 'T00:00:00') < new Date(e1 + 'T00:00:00');
+    }
+
+    let SC = {
+      available:   { fg:"#007A00", bg:"rgba(0,122,0,0.08)"        },
+      occupied:    { fg:"#C0392B", bg:"rgba(192,57,43,0.08)"      },
+      reserved:    { fg:"#B8860B", bg:"rgba(184,134,11,0.08)"     },
+      maintenance: { fg:"#64748B", bg:"rgba(100,116,139,0.08)"    },
+      preparing:   { fg:"#2563EB", bg:"rgba(37,99,235,0.08)"      },
+      serving:     { fg:"#7C3AED", bg:"rgba(124,58,237,0.08)"      },
+      served:      { fg:"#007A00", bg:"rgba(0,122,0,0.08)"        },
+      billed:      { fg:"#94A3B8", bg:"rgba(148,163,184,0.08)"    },
+      done:        { fg:"#007A00", bg:"rgba(0,122,0,0.08)"        },
+      scheduled:   { fg:"#B8860B", bg:"rgba(184,134,11,0.08)"     },
+      'end-of-day':{ fg:"#64748B", bg:"rgba(100,116,139,0.08)"    },
+    };
+
+    // ── Shared UI ─────────────────────────────────────────────────
+    function Badge({ s, label }) {
+      const c = SC[s] || { fg:T2, bg:"rgba(143,184,147,0.12)" };
+      return <span style={{ display:"inline-block",padding:"2px 9px",borderRadius:20,fontSize:10,fontWeight:700,color:c.fg,background:c.bg,textTransform:"capitalize",letterSpacing:"0.3px" }}>{label||s}</span>;
+    }
+    function Modal({ title, onClose, children, wide }) {
+      const modalRef = useRef(null);
+      useEffect(() => {
+        const previous = document.activeElement;
+        const onKey = (e) => {
+          if (e.key === 'Escape') onClose();
+          if (e.key !== 'Tab' || !modalRef.current) return;
+          const focusable = modalRef.current.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])');
+          if (!focusable.length) return;
+          const first = focusable[0]; const last = focusable[focusable.length - 1];
+          if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+          else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+        };
+        document.body.style.overflow = 'hidden';
+        document.addEventListener('keydown', onKey);
+        setTimeout(() => { const first = modalRef.current?.querySelector('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])'); first?.focus(); }, 0);
+        return () => { document.body.style.overflow = ''; document.removeEventListener('keydown', onKey); previous?.focus?.(); };
+      }, [onClose]);
+      return (
+        <div role="presentation" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position:"fixed",inset:0,background:"rgba(0,31,16,0.40)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,backdropFilter:"blur(6px)",padding:12 }}>
+          <div ref={modalRef} role="dialog" aria-modal="true" aria-label={title} onMouseDown={e => e.stopPropagation()} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:18,padding:26,width:wide?640:450,maxWidth:"95vw",maxHeight:"90vh",overflowY:"auto",boxShadow:"0 20px 60px rgba(0,62,0,0.18),0 8px 24px rgba(0,62,0,0.10)" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20 }}>
+              <span style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontWeight:600,color:ACC }}>{title}</span>
+              <button type="button" aria-label="Close dialog" onClick={onClose} style={{ background:"none",border:"none",color:T3,cursor:"pointer",padding:4 }}><Icon name="X"/></button>
+            </div>
+            {children}
+          </div>
+        </div>
+      );
+    }
+
+    function WarningModal({ title, message, children, onConfirm, onCancel, confirmLabel="Proceed Anyway", cancelLabel="Go Back" }) {
+      return (
+        <Modal title={title || "⚠️ Heads Up"} onClose={onCancel}>
+          {message && <p style={{ color:T2, fontSize:14, marginBottom:16, lineHeight:1.65 }}>{message}</p>}
+          {children}
+          <div style={{ display:"flex", gap:8, marginTop:18 }}>
+            <Btn v="danger" onClick={onConfirm}>{confirmLabel}</Btn>
+            <Btn v="ghost" onClick={onCancel}>{cancelLabel}</Btn>
+          </div>
+        </Modal>
+      );
+    }
+
+    function Btn({ onClick, children, v="ghost", sz="md", full, disabled=false }) {
+      const vs = { primary:{ background:ACC,color:"#FFFFFF",border:"none",boxShadow:"0 2px 8px rgba(0,122,0,0.22)" }, ghost:{ background:SURF2,color:T2,border:`1px solid ${BORD}` }, danger:{ background:"rgba(192,57,43,0.07)",color:"#C0392B",border:"1px solid rgba(192,57,43,0.22)" }, success:{ background:"rgba(0,122,0,0.07)",color:"#007A00",border:"1px solid rgba(0,122,0,0.22)" }, blue:{ background:"rgba(37,99,235,0.07)",color:"#2563EB",border:"1px solid rgba(37,99,235,0.22)" } };
+      const ss = { sm:{ padding:"4px 10px",fontSize:11 }, md:{ padding:"7px 14px",fontSize:13 }, lg:{ padding:"10px 20px",fontSize:14 } };
+      return <button type="button" disabled={disabled} onClick={onClick} style={{ ...vs[v],...ss[sz],borderRadius:9,cursor:disabled?"not-allowed":"pointer",opacity:disabled?0.55:1,fontFamily:"'DM Sans',sans-serif",fontWeight:500,display:"inline-flex",alignItems:"center",gap:5,width:full?"100%":"auto",justifyContent:full?"center":"flex-start",transition:"all 0.15s ease" }}>{children}</button>;
+    }
+    function Fld({ label, value, onChange, type="text", placeholder }) {
+      return (
+        <label style={{ display:"block", marginBottom:12 }}>
+          {label && <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:5,fontWeight:600 }}>{label}</div>}
+          <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width:"100%",background:SURF2,border:`1px solid ${BORD}`,color:T1,padding:"9px 12px",borderRadius:9,fontFamily:"'DM Sans',sans-serif",fontSize:13,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s ease,box-shadow 0.15s ease" }} onFocus={e=>{e.target.style.borderColor="#007A00";e.target.style.boxShadow="0 0 0 3px rgba(0,122,0,0.12)";}} onBlur={e=>{e.target.style.borderColor=BORD;e.target.style.boxShadow="none";}}/>
+        </label>
+      );
+    }
+    function Sel({ label, value, onChange, opts }) {
+      return (
+        <label style={{ display:"block", marginBottom:12 }}>
+          {label && <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:5,fontWeight:600 }}>{label}</div>}
+          <select value={value} onChange={e => onChange(e.target.value)} style={{ width:"100%",background:SURF2,border:`1px solid ${BORD}`,color:T1,padding:"9px 12px",borderRadius:9,fontFamily:"'DM Sans',sans-serif",fontSize:13,outline:"none",boxSizing:"border-box",transition:"border-color 0.15s ease,box-shadow 0.15s ease" }} onFocus={e=>{e.target.style.borderColor="#007A00";e.target.style.boxShadow="0 0 0 3px rgba(0,122,0,0.12)";}} onBlur={e=>{e.target.style.borderColor=BORD;e.target.style.boxShadow="none";}}>
+            {opts.map(o => <option key={o.v||o} value={o.v||o}>{o.l||o}</option>)}
+          </select>
+        </label>
+      );
+    }
+    function StatCard({ label, value, sub, color }) {
+      return (
+        <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:"20px 22px",boxShadow:"0 1px 3px rgba(0,62,0,0.06)" }}>
+          <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1.5px",marginBottom:8,fontWeight:600 }}>{label}</div>
+          <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:34,fontWeight:700,color:color||ACC,lineHeight:1 }}>{value}</div>
+          {sub && <div style={{ fontSize:11,color:T3,marginTop:6 }}>{sub}</div>}
+        </div>
+      );
+    }
+    function Card({ title, children }) {
+      return (
+        <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:20,boxShadow:"0 1px 3px rgba(0,62,0,0.06)" }}>
+          {title && <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:600,color:"#004A00",marginBottom:16 }}>{title}</div>}
+          {children}
+        </div>
+      );
+    }
+
+    // ── Dashboard ─────────────────────────────────────────────────
+    function Dashboard({ rooms, tables, orders, inventory, stockHistory, pool, orderHistory }) {
+      const occupied  = rooms.filter(r => r.status === "occupied").length;
+      const lowStock  = inventory.filter(i => i.qty < i.min);
+      const activeOrd = orders.filter(o => o.status !== "billed");
+      const poolPct   = Math.round((pool.curGuests / pool.maxCap) * 100);
+      const revenue   = rooms.filter(r => r.status === "occupied").reduce((s, r) => s + r.rate, 0);
+      const barItems  = inventory.filter(i => i.dept === "Bar");
+      const barLow    = barItems.filter(i => i.qty > 0 && i.qty < i.min);
+      const barOut    = barItems.filter(i => i.qty <= 0);
+      const barSales  = orders.reduce((sum, o) => sum + o.items.reduce((s, i) => { const m = getMenuItem(i.mid); return s + (m && isBarMenuItem(i.mid) ? m.price * i.qty : 0); }, 0), 0);
+      const barConsumed = safeArray(stockHistory).filter(h => h.dept === "Bar" && (h.type === "consumption" || h.type === "manual deduction")).slice(-5).reverse();
+      const todayBilled = safeArray(orderHistory).filter(h => h.billedAt && h.billedAt.startsWith(today));
+      const todayRevenue = todayBilled.reduce((s, o) => s + calcTotal(o.items), 0);
+      return (
+        <div>
+          {lowStock.length > 0 && (
+            <div style={{ background:"#FFFBEB",border:"1px solid rgba(184,134,11,0.28)",borderLeft:"3px solid #B8860B",borderRadius:12,padding:"11px 15px",marginBottom:18,display:"flex",alignItems:"center",gap:9,fontSize:13,color:"#92620A" }}>
+              <Icon name="AlertTriangle" size={15} color="#B8860B"/><strong>{lowStock.length} inventory items</strong>&nbsp;below minimum:&nbsp;
+              <span style={{ color:"#6B4810" }}>{lowStock.map(i => i.name).slice(0, 3).join(", ")}{lowStock.length > 3 ? "…" : ""}</span>
+            </div>
+          )}
+          <div className="dashboard-stats">
+            <StatCard label="Occupancy Rate"     value={`${Math.round((occupied / rooms.length) * 100)}%`} sub={`${occupied} of ${rooms.length} rooms`} color="#007A00"/>
+            <StatCard label="Active Orders"      value={activeOrd.length} sub={`${tables.filter(t => t.status === "occupied").length} tables occupied`} color="#2563EB"/>
+            <StatCard label="Pool Guests"        value={pool.curGuests} sub={`${pool.maxCap - pool.curGuests} spots left`} color="#0891B2"/>
+            <StatCard label="Room Revenue/Night" value={`₱${revenue.toLocaleString()}`} sub="Current occupied rooms" color={ACC}/>
+            <StatCard label="Today's F&B Sales"  value={`₱${todayRevenue.toLocaleString()}`} sub={`${todayBilled.length} bills closed today`} color="#007A00"/>
+          </div>
+          <div className="two-col-grid" style={{ marginBottom:14 }}>
+            <Card title="Room Status">
+              {[{l:"Available",s:"available",c:"#007A00"},{l:"Occupied",s:"occupied",c:"#C0392B"},{l:"Reserved",s:"reserved",c:"#B8860B"},{l:"Maintenance",s:"maintenance",c:"#64748B"}].map(x => (
+                <div key={x.s} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:9 }}>
+                  <div style={{ width:8,height:8,borderRadius:"50%",background:x.c,flexShrink:0 }}/>
+                  <div style={{ flex:1,fontSize:13,color:T2 }}>{x.l}</div>
+                  <div style={{ fontSize:13,fontWeight:600,color:T1 }}>{rooms.filter(r => r.status === x.s).length}</div>
+                  <div style={{ width:70,background:BORD,borderRadius:4,height:4 }}>
+                    <div style={{ width:`${(rooms.filter(r => r.status === x.s).length / rooms.length) * 100}%`,background:x.c,height:"100%",borderRadius:4 }}/>
+                  </div>
+                </div>
+              ))}
+            </Card>
+            <Card title="Active Restaurant Orders">
+              {activeOrd.length === 0
+                ? <div style={{ color:T3,fontSize:13,textAlign:"center",padding:"14px 0" }}>No active orders</div>
+                : activeOrd.slice(0, 5).map(o => (
+                  <div key={o.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${SURF2}`,fontSize:13 }}>
+                    <div><div style={{ color:T1,fontWeight:500 }}>Table {o.tableId}</div><div style={{ color:T3,fontSize:11 }}>{o.time}</div></div>
+                    <div style={{ display:"flex",alignItems:"center",gap:8 }}><span style={{ color:ACC,fontSize:12 }}>₱{calcTotal(o.items).toLocaleString()}</span><Badge s={o.status}/></div>
+                  </div>
+                ))
+              }
+            </Card>
+          </div>
+          <div className="two-col-grid">
+            <Card title="Pool Capacity">
+              <div style={{ display:"flex",alignItems:"center",gap:20 }}>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:40,fontWeight:700,color:poolPct>80?"#C0392B":poolPct>60?"#B8860B":"#0891B2",lineHeight:1 }}>{poolPct}%</div>
+                  <div style={{ fontSize:11,color:T3,marginTop:3 }}>capacity</div>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ background:BORD,borderRadius:8,height:10,overflow:"hidden",marginBottom:8 }}>
+                    <div style={{ width:`${poolPct}%`,background:poolPct>80?"#C0392B":poolPct>60?"#B8860B":"#0891B2",height:"100%",borderRadius:8,transition:"width 0.3s ease" }}/>
+                  </div>
+                  <div style={{ fontSize:12,color:T3 }}>{pool.curGuests} / {pool.maxCap} guests</div>
+                  <div style={{ fontSize:12,color:T3,marginTop:3 }}>{pool.maxCap-pool.curGuests} spots available</div>
+                </div>
+              </div>
+            </Card>
+            <Card title="Low Stock Items">
+              {lowStock.length === 0
+                ? <div style={{ color:T3,fontSize:13,textAlign:"center",padding:"14px 0" }}><Icon name="Check" size={16} color="#007A00"/> All items stocked</div>
+                : lowStock.map(i => (
+                  <div key={i.id} style={{ display:"flex", justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderBottom:`1px solid ${SURF2}`,fontSize:12 }}>
+                    <div><div style={{ color:T1 }}>{i.name}</div><div style={{ color:T3,fontSize:10 }}>{i.dept}</div></div>
+                    <div style={{ color:"#C0392B",fontWeight:600 }}>{i.qty}/{i.min} {i.unit}</div>
+                  </div>
+                ))
+              }
+            </Card>
+            <Card title="Bar Dashboard">
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(120px,1fr))",gap:10,marginBottom:12 }}>
+                <div style={{ background:SURF2,borderRadius:9,padding:10 }}><div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px" }}>Items</div><div style={{ color:T1,fontWeight:700,fontSize:20 }}>{barItems.length}</div></div>
+                <div style={{ background:SURF2,borderRadius:9,padding:10 }}><div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px" }}>Low</div><div style={{ color:"#B8860B",fontWeight:700,fontSize:20 }}>{barLow.length}</div></div>
+                <div style={{ background:SURF2,borderRadius:9,padding:10 }}><div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px" }}>Out</div><div style={{ color:"#C0392B",fontWeight:700,fontSize:20 }}>{barOut.length}</div></div>
+              </div>
+              {barConsumed.length
+                ? barConsumed.map(h => <div key={h.id} style={{ display:"flex",justifyContent:"space-between",gap:10,padding:"7px 0",borderBottom:`1px solid ${SURF2}`,fontSize:12 }}><span style={{ color:T2 }}>{h.itemName}</span><span style={{ color:"#DC4444",fontWeight:600 }}>{h.qty} {BAR_RECIPE_UNITS[h.unit]||h.unit}</span></div>)
+                : <div style={{ color:T3,fontSize:13,textAlign:"center",padding:"14px 0" }}>No bar consumption yet</div>
+              }
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Hotel ─────────────────────────────────────────────────────
+    function HotelView({ rooms, setRooms, pool, setPool }) {
+      const [sel,  setSel]  = useState(null);
+      const [mode, setMode] = useState(null);
+      const [form, setForm] = useState({ guest:"", checkIn:today, checkInTime:"14:00", checkOut:"", checkOutTime:"12:00", rate:0 });
+      const [filter, setFilter] = useState("all");
+      const [warn, setWarn] = useState(null);
+
+      const upd   = (id, data) => setRooms(p => p.map(r => r.id === id ? { ...r, ...data } : r));
+      const close = () => { setSel(null); setMode(null); setWarn(null); };
+
+      const doCheckIn = () => {
+        if (!sel || !form.guest.trim() || !form.checkIn || !form.checkOut) return;
+        upd(sel.id, { status:"occupied", guest:form.guest.trim(), checkIn:form.checkIn, checkInTime:form.checkInTime, checkOut:form.checkOut, checkOutTime:form.checkOutTime, rate:Number(form.rate) });
+        close();
+      };
+
+      const doReserve = () => {
+        if (!sel || !form.guest.trim() || !form.checkIn || !form.checkOut) return;
+        upd(sel.id, { status:"reserved", guest:form.guest.trim(), checkIn:form.checkIn, checkInTime:form.checkInTime, checkOut:form.checkOut, checkOutTime:form.checkOutTime, rate:Number(form.rate) });
+        close();
+      };
+
+      const doCheckOut = (room) => {
+        const guestKey = (room.guest || '').trim().toLowerCase();
+        const matching = pool.passes.filter(p => {
+          const pKey = p.name.trim().toLowerCase();
+          return guestKey && (pKey.includes(guestKey) || guestKey.includes(pKey));
+        });
+        if (matching.length > 0) {
+          const totalCount = matching.reduce((s, p) => s + p.count, 0);
+          setWarn({
+            message: `Found ${matching.length} pool pass(es) for "${room.guest}" (${totalCount} guest${totalCount !== 1 ? 's' : ''}). Remove them from the pool?`,
+            confirmLabel: "Yes, check out + remove passes",
+            cancelLabel: "Check out only",
+            onConfirm: () => {
+              setPool(prev => ({ ...prev, curGuests: Math.max(0, prev.curGuests - totalCount), passes: prev.passes.filter(p => !matching.find(mp => mp.id === p.id)) }));
+              upd(room.id, { status:"available", guest:null, checkIn:null, checkOut:null, checkInTime:null, checkOutTime:null });
+              setWarn(null); setSel(null); setMode(null);
+            },
+            onCancel: () => {
+              upd(room.id, { status:"available", guest:null, checkIn:null, checkOut:null, checkInTime:null, checkOutTime:null });
+              setWarn(null); setSel(null); setMode(null);
+            },
+          });
+        } else {
+          upd(room.id, { status:"available", guest:null, checkIn:null, checkOut:null, checkInTime:null, checkOutTime:null });
+          close();
+        }
+      };
+
+      return (
+        <div>
+          <div style={{ display:"flex",gap:7,marginBottom:18,flexWrap:"wrap" }}>
+            {["all","available","occupied","reserved","maintenance"].map(f => (
+              <button key={f} onClick={() => setFilter(f)} style={{ padding:"5px 14px",borderRadius:20,border:`1px solid ${filter===f?"#003E00":BORD}`,cursor:"pointer",fontSize:12,background:filter===f?"#003E00":SURF2,color:filter===f?"#FFFFFF":T3,textTransform:"capitalize",fontFamily:"'DM Sans',sans-serif",fontWeight:filter===f?600:400,transition:"all 0.15s ease" }}>
+                {f === "all" ? `All (${rooms.length})` : `${f} (${rooms.filter(r => r.status === f).length})`}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(145px,1fr))",gap:12 }}>
+            {rooms.filter(r => filter==="all" || r.status===filter).map(room => {
+              const c = SC[room.status] || SC.available;
+              return (
+                <div key={room.id} onClick={() => { setSel(room); setForm({ guest:room.guest||"", checkIn:room.checkIn||today, checkInTime:room.checkInTime||"14:00", checkOut:room.checkOut||"", checkOutTime:room.checkOutTime||"12:00", rate:room.rate }); setMode("edit"); }} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:"15px 13px",cursor:"pointer",position:"relative",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,62,0,0.05)",transition:"box-shadow 0.2s ease,transform 0.2s ease,border-color 0.2s ease" }} onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(0,62,0,0.10)";e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.borderColor="#C8DCC8";}} onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(0,62,0,0.05)";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=BORD;}}>
+                  <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:c.fg,borderRadius:"14px 14px 0 0" }}/>
+                  <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:17,fontWeight:700,color:T1,marginTop:4 }}>{room.number}</div>
+                  <div style={{ fontSize:9,textTransform:"uppercase",letterSpacing:"1.5px",color:T3,fontWeight:600,marginBottom:8 }}>{room.type}</div>
+                  <Badge s={room.status}/>
+                  {room.guest && <div style={{ fontSize:10,color:T2,marginTop:6,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{room.guest}</div>}
+                  {room.checkOut && <div style={{ fontSize:9,color:T3,marginTop:2 }}>out: {room.checkOut}</div>}
+                  <div style={{ fontSize:11,color:ACC,fontWeight:600,marginTop:7 }}>₱{(room.rate||0).toLocaleString()}/night</div>
+                </div>
+              );
+            })}
+          </div>
+
+          {sel && mode === 'edit' && !warn && (
+            <Modal title={`${sel.number} — ${sel.type}`} onClose={close}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                <Badge s={sel.status}/>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  <span style={{ color:ACC,fontSize:13 }}>₱{(sel.rate||0).toLocaleString()}/night</span>
+                  <button onClick={() => setMode('editrate')} title="Edit rate" style={{ background:"none",border:"none",color:T3,cursor:"pointer",fontSize:13 }}>✎</button>
+                </div>
+              </div>
+              {sel.guest && (
+                <div style={{ background:SURF2,borderRadius:10,padding:"11px 13px",marginBottom:14 }}>
+                  <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:5 }}>Guest</div>
+                  <div style={{ color:T1,fontWeight:500 }}>{sel.guest}</div>
+                  {sel.checkIn && (
+                    <div style={{ color:T3,fontSize:12,marginTop:4 }}>
+                      Check-in: {sel.checkIn}{sel.checkInTime ? ` @ ${sel.checkInTime}` : ''} → Check-out: {sel.checkOut}{sel.checkOutTime ? ` @ ${sel.checkOutTime}` : ''}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div style={{ display:"flex",gap:8,flexWrap:"wrap" }}>
+                {sel.status === "available" && (
+                  <>
+                    <Btn v="primary" onClick={() => { setMode("checkin"); }}><Icon name="LogIn" size={13}/>Check In</Btn>
+                    <Btn v="ghost" onClick={() => { setMode("reserve"); }}><Icon name="Calendar" size={13}/>Reserve</Btn>
+                    <Btn v="danger" onClick={() => { upd(sel.id,{status:"maintenance",guest:null,checkIn:null,checkOut:null,checkInTime:null,checkOutTime:null}); close(); }}>Set Maintenance</Btn>
+                  </>
+                )}
+                {sel.status === "occupied" && (
+                  <>
+                    <Btn v="success" onClick={() => doCheckOut(sel)}><Icon name="LogOut" size={13}/>Check Out</Btn>
+                    <Btn v="ghost" onClick={() => { setForm(f => ({...f,guest:"",checkIn:sel.checkOut||today,checkInTime:"14:00",checkOut:"",checkOutTime:"12:00"})); setMode("reserve"); }}><Icon name="Calendar" size={13}/>Reserve Next</Btn>
+                  </>
+                )}
+                {sel.status === "reserved" && (
+                  <>
+                    <Btn v="primary" onClick={() => { setMode("checkin"); }}><Icon name="LogIn" size={13}/>Check In Now</Btn>
+                    <Btn v="ghost" onClick={() => { setForm(f => ({...f,guest:"",checkIn:sel.checkOut||today,checkInTime:"14:00",checkOut:"",checkOutTime:"12:00"})); setMode("reserve"); }}><Icon name="Calendar" size={13}/>Reserve Next Stay</Btn>
+                    <Btn v="danger" onClick={() => { upd(sel.id,{status:"available",guest:null,checkIn:null,checkOut:null,checkInTime:null,checkOutTime:null}); close(); }}>Cancel Reservation</Btn>
+                  </>
+                )}
+                {sel.status === "maintenance" && <Btn v="success" onClick={() => { upd(sel.id,{status:"available"}); close(); }}><Icon name="Check" size={13}/>Mark Available</Btn>}
+              </div>
+            </Modal>
+          )}
+
+          {sel && mode === 'editrate' && !warn && (
+            <Modal title={`Edit Rate — ${sel.number}`} onClose={() => setMode('edit')}>
+              <div style={{ background:SURF2,borderRadius:9,padding:"9px 13px",marginBottom:14,fontSize:12,color:T3 }}>Current rate: <strong style={{color:ACC}}>₱{(sel.rate||0).toLocaleString()}/night</strong></div>
+              <Fld label="New Nightly Rate (₱)" type="number" value={String(form.rate||sel.rate||0)} onChange={v => { const n = clampNumber(v,0,0); upd(sel.id,{rate:n}); setSel(p => ({...p,rate:n})); setForm(f => ({...f,rate:n})); }}/>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={() => setMode('edit')}><Icon name="Check" size={13}/>Done</Btn></div>
+            </Modal>
+          )}
+
+          {sel && mode === "checkin" && !warn && (
+            <Modal title={`Check In — ${sel.number}`} onClose={close}>
+              <Fld label="Guest Name ✱" value={form.guest} onChange={v => setForm({...form,guest:v})} placeholder="Full name or group"/>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                <Fld label="Check-in Date ✱" type="date" value={form.checkIn} onChange={v => setForm({...form,checkIn:v})}/>
+                <Fld label="Check-in Time" type="time" value={form.checkInTime} onChange={v => setForm({...form,checkInTime:v})}/>
+              </div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                <Fld label="Check-out Date ✱" type="date" value={form.checkOut} onChange={v => setForm({...form,checkOut:v})}/>
+                <Fld label="Check-out Time" type="time" value={form.checkOutTime} onChange={v => setForm({...form,checkOutTime:v})}/>
+              </div>
+              <div style={{ fontSize:11,color:T3,marginTop:-8,marginBottom:10 }}>Date fields required. Times are optional (e.g. 2:00 PM check-in, 12:00 PM check-out).</div>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={doCheckIn}><Icon name="Check" size={13}/>Confirm Check In</Btn><Btn v="ghost" onClick={close}>Cancel</Btn></div>
+            </Modal>
+          )}
+
+          {sel && mode === "reserve" && !warn && (
+            <Modal title={`Reserve — ${sel.number}`} onClose={close}>
+              {(sel.status === 'occupied' || sel.status === 'reserved') && (
+                <div style={{ background:'rgba(75,139,245,0.08)',border:'1px solid rgba(75,139,245,0.2)',borderRadius:9,padding:'8px 12px',marginBottom:14,fontSize:12,color:'#4B8BF5' }}>
+                  <Icon name="Info" size={12}/> Current booking ends <strong>{sel.checkOut || '—'}</strong>. New reservation starts after that.
+                </div>
+              )}
+              <Fld label="Guest Name ✱" value={form.guest} onChange={v => setForm({...form,guest:v})} placeholder="Full name"/>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                <Fld label="Check-in Date ✱" type="date" value={form.checkIn} onChange={v => setForm({...form,checkIn:v})}/>
+                <Fld label="Check-in Time" type="time" value={form.checkInTime} onChange={v => setForm({...form,checkInTime:v})}/>
+              </div>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                <Fld label="Check-out Date ✱" type="date" value={form.checkOut} onChange={v => setForm({...form,checkOut:v})}/>
+                <Fld label="Check-out Time" type="time" value={form.checkOutTime} onChange={v => setForm({...form,checkOutTime:v})}/>
+              </div>
+              <div style={{ fontSize:11,color:T3,marginTop:-8,marginBottom:10 }}>Date fields required. Times are optional.</div>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={doReserve}><Icon name="Calendar" size={13}/>Confirm Reservation</Btn><Btn v="ghost" onClick={close}>Cancel</Btn></div>
+            </Modal>
+          )}
+
+          {warn && (
+            <WarningModal
+              message={warn.message}
+              confirmLabel={warn.confirmLabel}
+              cancelLabel={warn.cancelLabel}
+              onConfirm={warn.onConfirm}
+              onCancel={warn.onCancel || (() => setWarn(null))}
+            />
+          )}
+        </div>
+      );
+    }
+
+    // ── Restaurant ────────────────────────────────────────────────
+    function RestaurantView({ tables, setTables, orders, setOrders, inventory, setInventory, setStockHistory, setOrderHistory }) {
+      const [selTable, setSelTable] = useState(null);
+      const [view, setView]         = useState("tables");
+      const [mode, setMode]         = useState(null);
+      const [orderItems, setOrderItems] = useState({});
+      const [menuCat, setMenuCat]   = useState("All");
+      const [resForm, setResForm]   = useState({ guest:"", time:"", endTime:"" });
+      const [warn, setWarn]         = useState(null);
+
+      const inventoryRef = useRef(inventory);
+      useEffect(() => { inventoryRef.current = inventory; }, [inventory]);
+      // BUG-01 FIX: ordersRef keeps a live snapshot of orders so updOrder Phase 2
+      // can safely query remaining orders without stale closure or nested setters.
+      const ordersRef = useRef(orders);
+      useEffect(() => { ordersRef.current = orders; }, [orders]);
+
+      const tableOrders = (id) => orders.filter(o => o.tableId === id && o.status !== "billed");
+      
+      const add = (mid) => setOrderItems(p => ({...p, [mid]:(p[mid]||0)+1}));
+      const rem = (mid) => setOrderItems(p => { const n={...p}; if(n[mid]>1) n[mid]--; else delete n[mid]; return n; });
+      const total = Object.entries(orderItems).reduce((s, [mid, qty]) => { const m = getMenuItem(mid); return s + (m ? m.price * qty : 0); }, 0);
+      const pendingItems = Object.entries(orderItems).map(([mid, qty]) => ({ mid:parseInt(mid), qty }));
+      const stockIssues = getRecipeIssues(pendingItems, inventoryRef.current);
+
+      const placeOrder = () => {
+        if (!selTable || !Object.keys(orderItems).length) return;
+        const items = Object.entries(orderItems).map(([mid, qty]) => ({ mid:parseInt(mid), qty }));
+        const latestInventory = inventoryRef.current;
+        const issues = getRecipeIssues(items, latestInventory);
+        if (issues.length) { alert(`Insufficient bar stock: ${issues.map(i => `${i.name} (${i.available}/${i.qty} ${BAR_RECIPE_UNITS[i.unit]||i.unit})`).join(", ")}`); return; }
+        const now = new Date().toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" });
+        const o = { id:Date.now(), tableId:selTable.id, items, status:"preparing", time:now };
+        
+        setOrders(p => [...p, o]);
+        
+        if (items.some(i => getRecipe(i.mid).length)) {
+          setInventory(prev => applyRecipeConsumption(prev, items));
+          setStockHistory(p => [...p, ...buildConsumptionHistory(items, latestInventory, selTable.id)]);
+        }
+        setTables(p => p.map(t => t.id === selTable.id ? { ...t, status:"occupied", res: t.res ? t.res : { guest:"Walk-in", time:now, endTime:"" } } : t));
+        setOrderItems({}); setMode(null); setSelTable(null); setMenuCat("All");
+      };
+
+      const doReserve = () => {
+        if (!selTable || !resForm.guest.trim() || !resForm.time) return;
+        if (tableOrders(selTable.id).length > 0) { alert('This table already has an active order.'); return; }
+        if (selTable.status === 'reserved' && selTable.res?.time) {
+          const conflicts = timesOverlap(selTable.res.time, selTable.res.endTime || null, resForm.time, resForm.endTime || null);
+          if (conflicts) {
+            const existing = `${selTable.res.time}${selTable.res.endTime ? '–' + selTable.res.endTime : ''}`;
+            setWarn({
+              message: `Table ${selTable.number} has a reservation at ${existing}. New slot at ${resForm.time}${resForm.endTime?'–'+resForm.endTime:''} may overlap — proceed?`,
+              onConfirm: () => { performReserve(); setWarn(null); },
+            });
+            return;
+          }
+        }
+        if (selTable.status === 'occupied') {
+          setWarn({
+            message: `Table ${selTable.number} is currently occupied. Do you want to add a future reservation for ${resForm.time}?`,
+            onConfirm: () => { performReserve(); setWarn(null); },
+          });
+          return;
+        }
+        performReserve();
+      };
+
+      // BUG-02 FIX: capture selTable.id before the closure to avoid stale reference on rapid taps
+      const performReserve = () => {
+        const tableId = selTable?.id;
+        if (!tableId) return;
+        setTables(p => p.map(t => t.id === tableId ? { ...t, status:"reserved", res:{ guest:resForm.guest, time:resForm.time, endTime:resForm.endTime } } : t));
+        setResForm({ guest:"", time:"", endTime:"" }); setMode(null); setSelTable(null); setWarn(null);
+      };
+
+      const nextStatus = { preparing:"serving", serving:"served", served:"billed" };
+      const nextLabel  = { preparing:"Mark Serving", serving:"Mark Served", served:"Bill Out" };
+
+      // BUG-01 FIX: Two-phase billing — extract order data BEFORE entering any setter
+      // to eliminate stale-closure risk. setTables uses ordersRef (a live ref) to check
+      // remaining orders without nesting setters or reading stale closure state.
+      const updOrder = (id, status) => {
+        if (status === "billed") {
+          const billedAt = new Date().toISOString();
+          // Phase 1: remove order from active list and push to history atomically
+          setOrders(prevOrders => {
+            const order = prevOrders.find(o => o.id === id);
+            if (order) {
+              setOrderHistory(h => [...h, { ...order, status: "billed", billedAt }]);
+            }
+            return prevOrders.filter(o => o.id !== id);
+          });
+          // Phase 2: use ordersRef (kept current by useEffect) to query remaining orders
+          // without any stale closure or nested setState call.
+          setTables(prevTables =>
+            prevTables.map(table => {
+              const latestOrders = ordersRef.current || [];
+              const remaining = latestOrders.filter(
+                o => o.tableId === table.id && o.id !== id
+              );
+              const wasOwner = latestOrders.some(
+                o => o.tableId === table.id && o.id === id
+              );
+              if (wasOwner && remaining.length === 0) {
+                return { ...table, status: "available", res: null };
+              }
+              return table;
+            })
+          );
+        } else {
+          setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o));
+        }
+      };
+
+      const close = () => { setSelTable(null); setMode(null); setOrderItems({}); setMenuCat("All"); setWarn(null); };
+      const filteredMenu = menuCat === "All" ? MENU : MENU.filter(m => m.cat === menuCat);
+
+      return (
+        <div>
+          <div style={{ display:"flex",gap:4,background:SURF2,borderRadius:10,padding:4,marginBottom:18,width:"fit-content" }}>
+            {["tables","orders"].map(v => (
+              <button key={v} onClick={() => setView(v)} style={{ padding:"7px 18px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:500,background:view===v?SURF:"transparent",color:view===v?ACC:T3,textTransform:"capitalize" }}>{v === "tables" ? "Tables" : "Orders"}</button>
+            ))}
+          </div>
+
+          {view === "tables" && (
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(130px,1fr))",gap:12 }}>
+              {tables.map(t => {
+                const c = SC[t.status] || SC.available;
+                const activeOrders = tableOrders(t.id);
+                const orderCount = activeOrders.length;
+                const totalBill = activeOrders.reduce((sum, o) => sum + calcTotal(o.items), 0);
+                return (
+                  <div key={t.id} role="button" tabIndex={0} onClick={() => { setSelTable(t); setMode(null); }} onKeyDown={e => { if(e.key==='Enter'||e.key===' '){ e.preventDefault(); setSelTable(t); setMode(null); } }} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:14,padding:14,cursor:"pointer",position:"relative",overflow:"hidden",boxShadow:"0 1px 3px rgba(0,62,0,0.05)",transition:"box-shadow 0.2s ease,transform 0.2s ease,border-color 0.2s ease" }} onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 16px rgba(0,62,0,0.10)";e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.borderColor="#C8DCC8";}} onMouseLeave={e=>{e.currentTarget.style.boxShadow="0 1px 3px rgba(0,62,0,0.05)";e.currentTarget.style.transform="translateY(0)";e.currentTarget.style.borderColor=BORD;}}>
+                    <div style={{ position:"absolute",top:0,left:0,right:0,height:3,background:c.fg,borderRadius:"14px 14px 0 0" }}/>
+                    <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:7,marginTop:4 }}>
+                      <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontWeight:700,color:T1,lineHeight:1 }}>T{t.number}</div>
+                      <div style={{ fontSize:10,color:T3 }}>{t.cap} pax</div>
+                    </div>
+                    <div style={{ display:"flex", gap: 4, alignItems: "center" }}>
+                      <Badge s={t.status}/>
+                      {orderCount > 1 && <span style={{ background: ACC, color: "#FFF", borderRadius: "50%", width: 16, height: 16, fontSize: 9, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: "bold" }} title={`${orderCount} active orders`}>{orderCount}</span>}
+                    </div>
+                    {t.res && <div style={{ fontSize:10,color:T3,marginTop:5,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{t.res.guest} {t.res.time && `· ${t.res.time}`}{t.res.endTime&&`–${t.res.endTime}`}</div>}
+                    {orderCount > 0 && <div style={{ fontSize:11,color:ACC,marginTop:5,fontWeight:600 }}>₱{totalBill.toLocaleString()}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {view === "orders" && (
+            <div>
+              {["preparing","serving","served"].map(status => {
+                const grp = orders.filter(o => o.status === status);
+                if (!grp.length) return null;
+                return (
+                  <div key={status} style={{ marginBottom:20 }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}><Badge s={status}/><span style={{ color:T3,fontSize:12 }}>({grp.length})</span></div>
+                    {grp.map(o => (
+                      <div key={o.id} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:14,marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+                        <div>
+                          <div style={{ fontWeight:600,color:T1,marginBottom:6 }}>Table {o.tableId} <span style={{ color:T3,fontSize:12,fontWeight:400 }}>· {o.time}</span></div>
+                          {o.items.map(item => { const m = getMenuItem(item.mid); return m ? <div key={item.mid} style={{ fontSize:12,color:T3 }}>{item.qty}× {m.name} — ₱{(m.price*item.qty).toLocaleString()}</div> : null; })}
+                          <div style={{ color:ACC,fontWeight:600,marginTop:6,fontSize:13 }}>Total: ₱{calcTotal(o.items).toLocaleString()}</div>
+                        </div>
+                        <Btn v="primary" sz="sm" onClick={() => updOrder(o.id, nextStatus[status])}>{nextLabel[status]}</Btn>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {!orders.filter(o => ["preparing","serving","served"].includes(o.status)).length && <div style={{ color:T3,textAlign:"center",padding:"40px 0",fontSize:14 }}>No active orders</div>}
+            </div>
+          )}
+
+          {selTable && !mode && !warn && (
+            <Modal title={`Table ${selTable.number} — ${selTable.cap} pax`} onClose={close}>
+              <div style={{ marginBottom:14 }}><Badge s={selTable.status}/></div>
+              {selTable.res && (
+                <div style={{ background:SURF2,borderRadius:10,padding:"10px 13px",marginBottom:13 }}>
+                  <div style={{ color:T1,fontSize:13 }}>{selTable.res.guest}</div>
+                  {selTable.res.time && <div style={{ color:T3,fontSize:11,marginTop:3 }}>Time: {selTable.res.time}{selTable.res.endTime ? ` – ${selTable.res.endTime}` : ''}</div>}
+                </div>
+              )}
+              
+              {tableOrders(selTable.id).map((order, orderIdx) => (
+                <div key={order.id} style={{ background:SURF2,borderRadius:10,padding:"10px 13px",marginBottom:13, borderLeft: `3px solid ${SC[order.status]?.fg || ACC}` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:7 }}>
+                    <div style={{ fontSize:11,color:T1,fontWeight:600 }}>Order #{orderIdx + 1} <span style={{ color:T3,fontSize:10,fontWeight:400 }}>({order.time})</span></div>
+                    <Badge s={order.status}/>
+                  </div>
+                  {order.items.map(item => { const m = getMenuItem(item.mid); return m ? <div key={item.mid} style={{ fontSize:12,color:T2,marginBottom:2 }}>{item.qty}× {m.name}</div> : null; })}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 7, borderTop: `1px solid ${BORD}`, paddingTop: 6 }}>
+                    <span style={{ color:ACC,fontWeight:600, fontSize: 13 }}>₱{calcTotal(order.items).toLocaleString()}</span>
+                    <Btn v="blue" sz="sm" onClick={() => updOrder(order.id, nextStatus[order.status])}>{nextLabel[order.status]}</Btn>
+                  </div>
+                </div>
+              ))}
+              
+              <div style={{ display:"flex",gap:8,flexWrap:"wrap", marginTop: 14 }}>
+                <Btn v="primary" onClick={() => { setOrderItems({}); setMode("order"); setMenuCat("All"); }}><Icon name="Plus" size={13}/>New Order</Btn>
+                {(selTable.status === "available" || selTable.status === "occupied" || selTable.status === "reserved") && (
+                  <Btn v="ghost" onClick={() => setMode("reserve")}><Icon name="Calendar" size={13}/>Reserve</Btn>
+                )}
+                {selTable.status === "reserved" && (
+                  <Btn v="danger" onClick={() => { setTables(p => p.map(t => t.id === selTable.id ? {...t,status:"available",res:null} : t)); close(); }}>Cancel Reservation</Btn>
+                )}
+              </div>
+            </Modal>
+          )}
+
+          {selTable && mode === "order" && (
+            <Modal title={`New Order — Table ${selTable.number}`} onClose={close} wide>
+              <div className="order-grid">
+                <div style={{ display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0 }}>
+                  <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,flexShrink:0 }}>Menu</div>
+                  <div style={{ overflowX:"auto",display:"flex",gap:4,paddingBottom:8,flexShrink:0 }}>
+                    {MENU_CATS.map(cat => (
+                      <button key={cat} onClick={() => setMenuCat(cat)} style={{ padding:"3px 9px",borderRadius:20,border:"none",cursor:"pointer",fontSize:10,fontFamily:"'DM Sans',sans-serif",fontWeight:600,whiteSpace:"nowrap",background:menuCat===cat?ACC:SURF2,color:menuCat===cat?BG:T3 }}>{cat}</button>
+                    ))}
+                  </div>
+                  <div style={{ flex:1,overflowY:"auto" }}>
+                    {filteredMenu.map(m => {
+                      const recipe = getRecipe(m.id);
+                      const blocked = getRecipeIssues([{ mid:m.id, qty:(orderItems[m.id]||0)+1 }], inventoryRef.current).length > 0;
+                      return (
+                        <div key={m.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 2px",borderBottom:`1px solid ${SURF2}` }}>
+                          <div><div style={{ fontSize:12,color:blocked?"#DC4444":T1 }}>{m.name}</div><div style={{ fontSize:11,color:T3 }}>₱{m.price}{recipe.length?` · ${recipe.length} ingredients`:""}</div></div>
+                          <div style={{ display:"flex",alignItems:"center",gap:5,flexShrink:0 }}>
+                            <button onClick={() => rem(m.id)} style={{ background:BORD,border:"none",color:T1,width:22,height:22,borderRadius:6,cursor:"pointer",fontSize:15,lineHeight:1 }}>−</button>
+                            <span style={{ color:orderItems[m.id]?ACC:T3,fontSize:13,minWidth:18,textAlign:"center" }}>{orderItems[m.id]||0}</span>
+                            <button disabled={blocked} title={blocked?"Insufficient bar stock":""} onClick={() => add(m.id)} style={{ background:BORD,border:"none",color:blocked?T3:T1,width:22,height:22,borderRadius:6,cursor:blocked?"not-allowed":"pointer",fontSize:15,lineHeight:1,opacity:blocked?0.45:1 }}>+</button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div style={{ display:"flex",flexDirection:"column",overflow:"hidden",minHeight:0 }}>
+                  <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10,flexShrink:0 }}>Summary</div>
+                  <div style={{ flex:1,overflowY:"auto",background:SURF2,borderRadius:10,padding:12,marginBottom:12 }}>
+                    {!Object.keys(orderItems).length
+                      ? <div style={{ color:T3,fontSize:12,textAlign:"center",padding:"18px 0" }}>Select items from the menu</div>
+                      : Object.entries(orderItems).map(([mid, qty]) => { const m = getMenuItem(mid); return m ? <div key={mid} style={{ display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:12 }}><span style={{ color:T1 }}>{qty}× {m.name}</span><span style={{ color:ACC,flexShrink:0,marginLeft:8 }}>₱{(m.price*qty).toLocaleString()}</span></div> : null; })
+                    }
+                  </div>
+                  <div style={{ borderTop:`1px solid ${BORD}`,paddingTop:10,marginBottom:12,flexShrink:0 }}>
+                    {stockIssues.length > 0 && <div style={{ background:"rgba(192,57,43,0.06)",border:"1px solid rgba(192,57,43,0.20)",borderLeft:"3px solid #C0392B",borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:11,color:"#C0392B" }}><strong>Insufficient stock:</strong> {stockIssues.map(i => `${i.name} ${i.available}/${i.qty} ${BAR_RECIPE_UNITS[i.unit]||i.unit}`).join(", ")}</div>}
+                    <div style={{ display:"flex",justifyContent:"space-between" }}>
+                      <span style={{ color:T2,fontWeight:600,fontSize:12 }}>TOTAL</span>
+                      <span style={{ color:ACC,fontWeight:700,fontSize:20 }}>₱{total.toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <Btn v="primary" onClick={placeOrder} disabled={stockIssues.length > 0} full><Icon name="Check" size={13}/>Place Order</Btn>
+                </div>
+              </div>
+            </Modal>
+          )}
+
+          {selTable && mode === "reserve" && !warn && (
+            <Modal title={`Reserve Table ${selTable.number}`} onClose={close}>
+              <Fld label="Guest Name" value={resForm.guest} onChange={v => setResForm({...resForm,guest:v})} placeholder="Name or group"/>
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10 }}>
+                <Fld label="Start Time" type="time" value={resForm.time}    onChange={v => setResForm({...resForm,time:v})}/>
+                <Fld label="End Time (optional)" type="time" value={resForm.endTime} onChange={v => setResForm({...resForm,endTime:v})}/>
+              </div>
+              <div style={{ fontSize:11,color:T3,marginTop:-6,marginBottom:12 }}>If no end time is set, a 2-hour window is assumed for conflict checks.</div>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={doReserve}><Icon name="Calendar" size={13}/>Confirm</Btn><Btn v="ghost" onClick={close}>Cancel</Btn></div>
+            </Modal>
+          )}
+
+          {warn && (
+            <WarningModal
+              message={warn.message}
+              confirmLabel={warn.confirmLabel}
+              cancelLabel={warn.cancelLabel}
+              onConfirm={warn.onConfirm}
+              onCancel={warn.onCancel || (() => setWarn(null))}
+            />
+          )}
+        </div>
+      );
+    }
+
+    function getMenuItem(id) {
+      return MENU.find(m => m.id === Number(id)) || { name:'Unknown Item', price:0, cat:'Unknown' };
+    }
+
+    // ── Lake Cruise Module ──────────────────────────────────────────
+    function CruiseView({ cruises, setCruises }) {
+      const [showAdd, setShowAdd] = useState(false);
+      const [form, setForm] = useState({ name: "", date: today, time: "08:00", heads: "20" });
+
+      const calculatedCost = useMemo(() => {
+        const headsVal = clampNumber(form.heads, 1, 1);
+        if (headsVal <= 20) return 1500;
+        return 1500 + ((headsVal - 20) * 75);
+      }, [form.heads]);
+
+      // BUG-07 FIX: re-compute cost at save time from clamped heads (not from stale memo)
+      // to prevent empty-string edge case where memo returns 1500 for 0-head input.
+      const saveCruise = () => {
+        if (!form.name.trim()) { alert("Reservation Name is required."); return; }
+        const headsVal = Math.max(1, clampNumber(form.heads, 1, 1));
+        const finalCost = headsVal <= 20 ? 1500 : 1500 + ((headsVal - 20) * 75);
+        const item = {
+          id: Date.now(),
+          name: form.name.trim(),
+          date: form.date || today,
+          time: form.time || "08:00",
+          heads: headsVal,
+          cost: finalCost
+        };
+        setCruises(prev => [...prev, item]);
+        setForm({ name: "", date: today, time: "08:00", heads: "20" });
+        setShowAdd(false);
+      };
+
+      const removeCruise = (id) => {
+        if (window.confirm("Remove this lake cruise booking?")) {
+          setCruises(prev => prev.filter(c => c.id !== id));
+        }
+      };
+
+      const todayTrips = useMemo(() => cruises.filter(c => c.date === today), [cruises]);
+      const totalRevenue = useMemo(() => todayTrips.reduce((sum, c) => sum + c.cost, 0), [todayTrips]);
+
+      return (
+        <div>
+          <div className="dashboard-stats">
+            <StatCard label="Trips Booked Today" value={todayTrips.length} sub="Scheduled runs" color="#22C27A" />
+            <StatCard label="Today's Cruise Revenue" value={`₱${totalRevenue.toLocaleString()}`} sub="Based on passenger distribution" color={ACC} />
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span style={{ color: T2, fontSize: 13 }}>Lake Cruise Logbook</span>
+            <Btn v="primary" sz="sm" onClick={() => setShowAdd(true)}><Icon name="Plus" size={12} />Add Cruise</Btn>
+          </div>
+
+          <Card>
+            <div style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 1fr 1.2fr 40px", padding: "8px 0", borderBottom: `1px solid ${BORD}`, fontSize: 10, textTransform: "uppercase", letterSpacing: "1px", color: T3, marginBottom: 4 }}>
+              <div>Reservation Name</div><div>Date</div><div>Time Slot</div><div>Heads</div><div>Amount Due</div><div></div>
+            </div>
+            {cruises.slice().reverse().map(c => (
+              <div key={c.id} style={{ display: "grid", gridTemplateColumns: "2fr 1.2fr 1.2fr 1fr 1.2fr 40px", padding: "11px 0", borderBottom: `1px solid ${SURF2}`, alignItems: "center", fontSize: 13 }}>
+                <div style={{ color: T1, fontWeight: 500 }}>{c.name}</div>
+                <div style={{ color: T2 }}>{c.date}</div>
+                <div style={{ color: T2 }}>{c.time}</div>
+                <div style={{ color: T1 }}>{c.heads} pax</div>
+                <div style={{ color: ACC, fontWeight: 600 }}>₱{c.cost.toLocaleString()}</div>
+                <button onClick={() => removeCruise(c.id)} style={{ background: "none", border: "none", color: T3, cursor:"pointer", padding: 0 }} title="Delete schedule"><Icon name="Trash2" size={13} /></button>
+              </div>
+            ))}
+            {!cruises.length && <div style={{ color: T3, textAlign: "center", padding: "30px 0", fontSize: 13 }}>No lake cruises logged in this register profile</div>}
+          </Card>
+
+          {showAdd && (
+            <Modal title="Log New Lake Cruise Reservation" onClose={() => setShowAdd(false)}>
+              <Fld label="Reservation Group / Name" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="e.g. Alunan Family Tour" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                <Fld label="Target Cruise Date" type="date" value={form.date} onChange={v => setForm({ ...form, date: v })} />
+                <Fld label="Target Time Slot" type="time" value={form.time} onChange={v => setForm({ ...form, time: v })} />
+              </div>
+              <Fld label="Number of Heads (Passengers)" type="number" value={form.heads} onChange={v => setForm({ ...form, heads: v })} />
+              
+              <div style={{ background: SURF2, borderRadius: 10, padding: 12, marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: T3, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: 4 }}>Live Cost Calculation Matrix</div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: T2 }}>Standard Base Rate Matrix: ₱1,500 (20 pax limits)</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: ACC }}>₱{calculatedCost.toLocaleString()}</span>
+                </div>
+                {clampNumber(form.heads, 1, 1) > 20 && (
+                  <div style={{ fontSize: 11, color: "#B8860B", marginTop: 4 }}>
+                    ⚠️ Scaled Extra Count: {clampNumber(form.heads, 1, 1) - 20} heads detected. Adding ₱75 per additional occupant.
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, marginTop: 6 }}>
+                <Btn v="primary" onClick={saveCruise}><Icon name="Check" size={13} />Book Trip</Btn>
+                <Btn v="ghost" onClick={() => setShowAdd(false)}>Cancel</Btn>
+              </div>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    // ── Pool ──────────────────────────────────────────────────────
+    function PoolView({ pool, setPool }) {
+      const [view, setView]               = useState("overview");
+      const [showPass, setShowPass]   = useState(false);
+      const [showMaint, setShowMaint] = useState(false);
+      const [pf, setPf] = useState({ name:"", count:"1", type:"Day Pass" });
+      const [mf, setMf] = useState({ task:"", date:today, status:"scheduled" });
+      const pct = Math.round((pool.curGuests / pool.maxCap) * 100);
+      const col = pct >= 80 ? "#DC4444" : pct >= 60 ? "#D4A036" : "#22C27A";
+      const r = 60; const circ = 2 * Math.PI * r;
+      const addPass = () => {
+        if (!pf.name.trim()) { alert('Please enter a guest or group name.'); return; }
+        const parsed = parseInt(pf.count, 10);
+        if (!Number.isFinite(parsed) || parsed < 1) { alert('Number of guests must be at least 1.'); return; }
+        const cnt = parsed;
+        const spotsLeft = Math.max(0, pool.maxCap - pool.curGuests);
+        if (cnt > spotsLeft) { alert(`Not enough capacity. Only ${spotsLeft} spot${spotsLeft !== 1 ? 's' : ''} remaining.`); return; }
+        const now = new Date().toLocaleTimeString("en-PH", { hour:"2-digit", minute:"2-digit" });
+        setPool(p => ({ ...p, curGuests:Math.min(p.maxCap, p.curGuests + cnt), passes:[...p.passes, { id:Date.now(), name:pf.name.trim(), count:cnt, time:now, type:pf.type }] }));
+        setPf({ name:"", count:"1", type:"Day Pass" }); setShowPass(false);
+      };
+      const remPass  = (pass) => setPool(p => ({ ...p, curGuests:Math.max(0, p.curGuests - pass.count), passes:p.passes.filter(x => x.id !== pass.id) }));
+      const addMaint = () => { if (!mf.task.trim() || !validDateValue(mf.date)) return; setPool(p => ({ ...p, maintenance:[...p.maintenance, { id:Date.now(), ...mf, task:mf.task.trim() }] })); setMf({ task:"", date:today, status:"scheduled" }); setShowMaint(false); };
+      const toggleMaint = (id) => setPool(p => ({ ...p, maintenance:p.maintenance.map(m => m.id === id ? { ...m, status:m.status==="done"?"scheduled":"done" } : m) }));
+      return (
+        <div>
+          <div style={{ display:"flex",gap:4,background:SURF2,borderRadius:10,padding:4,marginBottom:18,width:"fit-content" }}>
+            {["overview","passes","maintenance"].map(v => (
+              <button key={v} onClick={() => setView(v)} style={{ padding:"7px 16px",borderRadius:7,border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13,fontWeight:500,background:view===v?SURF:"transparent",color:view===v?ACC:T3,textTransform:"capitalize" }}>{v}</button>
+            ))}
+          </div>
+          {view === "overview" && (
+            <div className="pool-grid">
+              <Card>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ position:"relative",width:150,height:150,margin:"0 auto 14px" }}>
+                    <svg width="150" height="150" viewBox="0 0 150 150">
+                      <circle cx="75" cy="75" r={r} fill="none" stroke={BORD} strokeWidth={11}/>
+                      <circle cx="75" cy="75" r={r} fill="none" stroke={col} strokeWidth={11} strokeDasharray={`${(pct/100)*circ} ${circ}`} strokeLinecap="round" style={{ transform:"rotate(-90deg)",transformOrigin:"75px 75px" }}/>
+                    </svg>
+                    <div style={{ position:"absolute",inset:0,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center" }}>
+                      <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:34,fontWeight:700,color:col,lineHeight:1 }}>{pct}%</div>
+                      <div style={{ fontSize:9,color:T3,marginTop:4,textTransform:"uppercase",letterSpacing:"1px" }}>Capacity</div>
+                    </div>
+                  </div>
+                  <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:700,color:T1 }}>{pool.curGuests}</div>
+                  <div style={{ fontSize:11,color:T3 }}>of {pool.maxCap} guests</div>
+                  <div style={{ marginTop:14 }}><Btn v="primary" sz="sm" onClick={() => setShowPass(true)} full><Icon name="Plus" size={12}/>Add Guests</Btn></div>
+                </div>
+              </Card>
+              <div className="pool-cards">
+                {[{l:"Current Guests",v:pool.curGuests,c:"#22C27A"},{l:"Spots Left",v:pool.maxCap-pool.curGuests,c:"#007A00"},{l:"Day Passes",v:pool.passes.filter(p=>p.type==="Day Pass").reduce((s,p)=>s+p.count,0),c:"#D4A036"},{l:"Hotel Guests",v:pool.passes.filter(p=>p.type==="Hotel Guest").reduce((s,p)=>s+p.count,0),c:"#A066D3"}].map(s => <StatCard key={s.l} label={s.l} value={s.v} color={s.c}/>)}
+              </div>
+            </div>
+          )}
+          {view === "passes" && (
+            <div>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                <span style={{ color:T2,fontSize:13 }}>Active Pool Passes Today</span>
+                <Btn v="primary" sz="sm" onClick={() => setShowPass(true)}><Icon name="Plus" size={12}/>Add Pass</Btn>
+              </div>
+              <Card>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 70px 90px 70px 30px",padding:"8px 0",borderBottom:`1px solid ${BORD}`,fontSize:10,textTransform:"uppercase",letterSpacing:"1px",color:T3,marginBottom:4 }}>
+                  <div>Name</div><div>Guests</div><div>Type</div><div>Time</div><div></div>
+                </div>
+                {pool.passes.map(p => (
+                  <div key={p.id} style={{ display:"grid",gridTemplateColumns:"1fr 70px 90px 70px 30px",padding:"10px 0",borderBottom:`1px solid ${SURF2}`,alignItems:"center",fontSize:13 }}>
+                    <div style={{ color:T1 }}>{p.name}</div>
+                    <div style={{ color:T1,fontWeight:600 }}>{p.count}</div>
+                    <div><Badge s={p.type==="Hotel Guest"?"occupied":"reserved"} label={p.type}/></div>
+                    <div style={{ color:T3 }}>{p.time}</div>
+                    <button onClick={() => remPass(p)} style={{ background:"none",border:"none",color:T3,cursor:"pointer",padding:0 }}><Icon name="X" size={13}/></button>
+                  </div>
+                ))}
+                {!pool.passes.length && <div style={{ color:T3,textAlign:"center",padding:"20px 0",fontSize:13 }}>No active passes</div>}
+              </Card>
+            </div>
+          )}
+          {view === "maintenance" && (
+            <div>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
+                <span style={{ color:T2,fontSize:13 }}>Maintenance Schedule</span>
+                <Btn v="primary" sz="sm" onClick={() => setShowMaint(true)}><Icon name="Plus" size={12}/>Add Task</Btn>
+              </div>
+              <Card>
+                {pool.maintenance.map(m => (
+                  <div key={m.id} style={{ display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:`1px solid ${SURF2}` }}>
+                    <button onClick={() => toggleMaint(m.id)} style={{ width:20,height:20,borderRadius:5,border:`2px solid ${m.status==="done"?"#22C27A":BORD}`,background:m.status==="done"?"#22C27A":"transparent",cursor:"pointer",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center" }}>
+                      {m.status === "done" && <Icon name="Check" size={11} color={BG}/>}
+                    </button>
+                    <div style={{ flex:1,color:m.status==="done"?T3:T1,fontSize:13,textDecoration:m.status==="done"?"line-through":"none" }}>{m.task}</div>
+                    <div style={{ fontSize:12,color:T3 }}>{m.date}</div>
+                    <Badge s={m.status}/>
+                  </div>
+                ))}
+              </Card>
+            </div>
+          )}
+          {showPass && (
+            <Modal title="Add Pool Guests" onClose={() => setShowPass(false)}>
+              <div style={{ background:SURF2,borderRadius:9,padding:"8px 12px",marginBottom:14,fontSize:12,color:T3 }}>{pool.curGuests} / {pool.maxCap} — {pool.maxCap-pool.curGuests} spots available</div>
+              <Fld label="Name / Group"     value={pf.name}  onChange={v => setPf({...pf,name:v})} placeholder="Guest or group name"/>
+              <Fld label="Number of Guests" type="number" value={pf.count} onChange={v => setPf({...pf,count:v})}/>
+              <Sel label="Pass Type"        value={pf.type}  onChange={v => setPf({...pf,type:v})} opts={["Day Pass","Hotel Guest"]}/>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={addPass}><Icon name="Check" size={13}/>Add to Pool</Btn><Btn v="ghost" onClick={() => setShowPass(false)}>Cancel</Btn></div>
+            </Modal>
+          )}
+          {showMaint && (
+            <Modal title="Add Maintenance Task" onClose={() => setShowMaint(false)}>
+              <Fld label="Task" value={mf.task} onChange={v => setMf({...mf,task:v})} placeholder="e.g. pH Level Check"/>
+              <Fld label="Date" type="date" value={mf.date} onChange={v => setMf({...mf,date:v})}/>
+              <Sel label="Status" value={mf.status} onChange={v => setMf({...mf,status:v})} opts={[{v:"scheduled",l:"Scheduled"},{v:"done",l:"Done"}]}/>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={addMaint}><Icon name="Check" size={13}/>Add Task</Btn><Btn v="ghost" onClick={() => setShowMaint(false)}>Cancel</Btn></div>
+            </Modal>
+          )}
+        </div>
+      );
+    }
+
+    // ── Inventory ─────────────────────────────────────────────────
+    function InventoryView({ inventory, setInventory, stockHistory, setStockHistory }) {
+      const [showAdd, setShowAdd]       = useState(false);
+      const [dept, setDept]             = useState("All");
+      const [editId, setEditId]         = useState(null);
+      const [showArchived, setShowArchived] = useState(false);
+      const [form, setForm]             = useState({ name:"", dept:"Housekeeping", qty:"", min:"", unit:"" });
+      const activeInventory = useMemo(() => inventory.filter(i => !i.archived), [inventory]);
+      const archivedInventory = useMemo(() => inventory.filter(i => i.archived), [inventory]);
+      const depts   = useMemo(() => ["All",...new Set(activeInventory.map(i => i.dept))], [activeInventory]);
+      const shown   = useMemo(() => dept === "All" ? activeInventory : activeInventory.filter(i => i.dept === dept), [dept, activeInventory]);
+      const low     = useMemo(() => activeInventory.filter(i => i.qty < i.min), [activeInventory]);
+      const save = () => {
+        if (!form.name.trim()) { alert('Item name is required.'); return; }
+        if (form.qty === "" || form.min === "") { alert('Quantity and Min Stock are required.'); return; }
+        const cleaned = { ...form, name:form.name.trim(), unit:form.unit.trim(), qty:clampNumber(form.qty,0,0), min:clampNumber(form.min,0,0) };
+        if (editId) {
+          const nameConflict = inventory.some(i => i.id !== editId && itemKey(i.name) === itemKey(cleaned.name));
+          if (nameConflict) { alert(`Another item named "${cleaned.name}" already exists. Please use a unique name.`); return; }
+          setInventory(p => p.map(i => i.id === editId ? { ...i, ...cleaned } : i)); setEditId(null);
+        } else {
+          const duplicate = inventory.some(i => itemKey(i.name) === itemKey(cleaned.name));
+          if (duplicate) { alert(`An item named "${cleaned.name}" already exists. Edit the existing item instead.`); return; }
+          setInventory(p => [...p, { id:Date.now(), ...cleaned }]);
+        }
+        setForm({ name:"",dept:"Housekeeping",qty:"",min:"",unit:"" }); setShowAdd(false);
+      };
+      const del    = (id) => setInventory(p => p.map(i => i.id === id ? { ...i, archived: true } : i));
+      const restore= (id) => setInventory(p => p.map(i => i.id === id ? { ...i, archived: false } : i));
+      const hardDel= (id) => { if (window.confirm('Permanently delete this item? This cannot be undone.')) setInventory(p => p.filter(i => i.id !== id)); };
+      const edit   = (item) => { setForm({ name:item.name,dept:item.dept,qty:String(item.qty),min:String(item.min),unit:item.unit }); setEditId(item.id); setShowAdd(true); };
+      const adj  = (id, d) => {
+        const item = inventory.find(i => i.id === id);
+        if (item) {
+          const newQty = Math.max(0, item.qty + d);
+          const actualDelta = newQty - item.qty;
+          if (actualDelta !== 0) {
+            setStockHistory(h => [...h, {
+              id: Date.now(), itemName: item.name, dept: item.dept,
+              qty: actualDelta, unit: item.unit,
+              type: actualDelta > 0 ? 'restock' : 'manual deduction',
+              note: actualDelta > 0 ? 'Manual restock' : 'Manual deduction',
+              time: new Date().toISOString()
+            }]);
+          }
+        }
+        setInventory(p => p.map(i => i.id === id ? { ...i, qty:Math.max(0, i.qty + d) } : i));
+      };
+      const DEPT_COL = { Housekeeping:{bg:"rgba(160,102,211,0.12)",fg:"#A066D3"}, Restaurant:{bg:"rgba(75,139,245,0.12)",fg:"#4B8BF5"}, Pool:{bg:"rgba(34,194,212,0.12)",fg:"#22C27A"}, Hotel:{bg:"rgba(34,194,122,0.12)",fg:"#22C27A"}, Bar:{bg:"rgba(212,168,71,0.12)",fg:ACC} };
+      const barOut = activeInventory.filter(i => i.dept === "Bar" && i.qty <= 0);
+      const barLow = activeInventory.filter(i => i.dept === "Bar" && i.qty > 0 && i.qty < i.min);
+      const recentHistory = safeArray(stockHistory).slice(-8).reverse();
+      return (
+        <div>
+          {barOut.length > 0 && (<div style={{ background:"rgba(220,68,68,0.08)",border:"1px solid rgba(220,68,68,0.25)",borderRadius:10,padding:"9px 13px",marginBottom:10,fontSize:12,color:"#DC4444",display:"flex",alignItems:"center",gap:8 }}><Icon name="AlertTriangle" size={13}/><strong>{barOut.length} bar items out of stock:</strong> {barOut.map(i => i.name).slice(0,5).join(", ")}</div>)}
+          {barLow.length > 0 && (<div style={{ background:"rgba(212,160,54,0.08)",border:"1px solid rgba(212,160,54,0.25)",borderRadius:10,padding:"9px 13px",marginBottom:10,fontSize:12,color:ACC,display:"flex",alignItems:"center",gap:8 }}><Icon name="AlertTriangle" size={13}/><strong>{barLow.length} bar items low:</strong> {barLow.map(i => i.name).slice(0,5).join(", ")}</div>)}
+          {low.length > 0 && (<div style={{ background:"rgba(220,68,68,0.08)",border:"1px solid rgba(220,68,68,0.25)",borderRadius:10,padding:"9px 13px",marginBottom:14,fontSize:12,color:"#DC4444",display:"flex",alignItems:"center",gap:8 }}><Icon name="AlertTriangle" size={13}/><strong>{low.length} items</strong>&nbsp;need restocking: {low.map(i => i.name).join(", ")}</div>)}
+          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14,flexWrap:"wrap",gap:10 }}>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>
+              {depts.map(d => (<button key={d} onClick={() => setDept(d)} style={{ padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",background:dept===d?ACC:SURF2,color:dept===d?BG:T3,fontWeight:dept===d?600:400 }}>{d}</button>))}
+            </div>
+            <div style={{ display:"flex",gap:6,alignItems:"center" }}>
+              {archivedInventory.length > 0 && (
+                <button onClick={() => setShowArchived(v => !v)} style={{ padding:"5px 12px",borderRadius:20,border:`1px solid ${BORD}`,cursor:"pointer",fontSize:11,fontFamily:"'DM Sans',sans-serif",background:showArchived?"rgba(107,114,128,0.15)":SURF2,color:showArchived?"#6B7280":T3 }}>
+                  {showArchived ? '⬆ Hide Archived' : `📦 Archived (${archivedInventory.length})`}
+                </button>
+              )}
+              <Btn v="primary" sz="sm" onClick={() => { setForm({name:"",dept:"Housekeeping",qty:"",min:"",unit:""}); setEditId(null); setShowAdd(true); }}><Icon name="Plus" size={12}/>Add Item</Btn>
+            </div>
+          </div>
+          <div className="responsive-table-wrap" style={{ background:SURF,border:`1px solid ${BORD}` }}>
+            <div className="inventory-table" style={{ display:"grid",gridTemplateColumns:"2fr 100px 140px 55px 55px 65px",padding:"9px 14px",background:SURF2,fontSize:10,textTransform:"uppercase",letterSpacing:"1px",color:T3 }}>
+              <div>Item</div><div>Dept</div><div>Stock</div><div>Min</div><div>Unit</div><div>Actions</div>
+            </div>
+            {shown.map(item => {
+              const isLow = item.qty < item.min;
+              const stockColor = getStockColor(item);
+              const dc = DEPT_COL[item.dept] || { bg:"rgba(90,125,94,0.12)",fg:T2 };
+              return (
+                <div key={item.id} className="inventory-table" style={{ display:"grid",gridTemplateColumns:"2fr 100px 140px 55px 55px 65px",padding:"10px 14px",borderBottom:`1px solid ${SURF2}`,alignItems:"center",background:isLow?"rgba(220,68,68,0.02)":"transparent" }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:7 }}>{isLow && <Icon name="AlertTriangle" size={11} color="#DC4444"/>}<span style={{ color:T1,fontSize:13 }}>{item.name}</span></div>
+                  <div><span style={{ fontSize:10,padding:"2px 7px",borderRadius:6,fontWeight:600,background:dc.bg,color:dc.fg }}>{item.dept}</span></div>
+                  <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                    <span title={item.qty<=0?"Out of stock":isLow?"Low stock":"In stock"} style={{ width:8,height:8,borderRadius:"50%",background:stockColor,display:"inline-block",flexShrink:0 }}/>
+                    <button onClick={() => adj(item.id,-1)} style={{ background:BORD,border:"none",color:T1,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:14,lineHeight:1 }}>−</button>
+                    <span style={{ color:stockColor,fontWeight:600,fontSize:13,minWidth:24,textAlign:"center" }}>{item.qty}</span>
+                    <button onClick={() => adj(item.id, 1)} style={{ background:BORD,border:"none",color:T1,width:22,height:22,borderRadius:5,cursor:"pointer",fontSize:14,lineHeight:1 }}>+</button>
+                  </div>
+                  <div style={{ color:T3,fontSize:12 }}>{item.min}</div>
+                  <div style={{ color:T3,fontSize:12 }}>{item.unit}</div>
+                  <div style={{ display:"flex",gap:7 }}>
+                    <button onClick={() => edit(item)} style={{ background:"none",border:"none",color:T3,cursor:"pointer",padding:2 }} title="Edit item"><Icon name="Edit" size={12}/></button>
+                    <button onClick={() => del(item.id)} style={{ background:"none",border:"none",color:"#D4A036",cursor:"pointer",padding:2 }} title="Archive item (soft delete)">📦</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {showArchived && archivedInventory.length > 0 && (
+            <div style={{ marginTop:16 }}>
+              <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,display:"flex",alignItems:"center",gap:6 }}>📦 Archived Items <span style={{ color:"#6B7280" }}>({archivedInventory.length})</span></div>
+              <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:12,overflow:"hidden" }}>
+                {archivedInventory.map(item => {
+                  const dc = DEPT_COL[item.dept] || { bg:"rgba(90,125,94,0.12)",fg:T2 };
+                  return (
+                    <div key={item.id} className="inventory-table" style={{ display:"grid",gridTemplateColumns:"2fr 100px 140px 55px 55px 65px",padding:"10px 14px",borderBottom:`1px solid ${SURF2}`,alignItems:"center",opacity:0.55 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:7 }}><span style={{ color:T3,fontSize:13,textDecoration:"line-through" }}>{item.name}</span></div>
+                      <div><span style={{ fontSize:10,padding:"2px 7px",borderRadius:6,fontWeight:600,background:dc.bg,color:dc.fg }}>{item.dept}</span></div>
+                      <div style={{ color:T3,fontSize:12 }}>{item.qty} {item.unit}</div>
+                      <div style={{ color:T3,fontSize:12 }}>{item.min}</div>
+                      <div style={{ color:T3,fontSize:12 }}>{item.unit}</div>
+                      <div style={{ display:"flex",gap:7 }}>
+                        <button onClick={() => restore(item.id)} style={{ background:"none",border:"none",color:"#22C27A",cursor:"pointer",padding:2,fontSize:12 }} title="Restore item">↩</button>
+                        <button onClick={() => hardDel(item.id)} style={{ background:"none",border:"none",color:"#DC4444",cursor:"pointer",padding:2 }} title="Permanently delete"><Icon name="Trash2" size={12}/></button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {showAdd && (
+            <Modal title={editId ? "Edit Item" : "Add Inventory Item"} onClose={() => { setShowAdd(false); setEditId(null); }}>
+              <Fld label="Item Name" value={form.name} onChange={v => setForm({...form,name:v})}/>
+              <Sel label="Department" value={form.dept} onChange={v => setForm({...form,dept:v})} opts={["Housekeeping","Restaurant","Pool","Hotel","Bar"]}/>
+              <div className="two-col-grid" style={{ gap:10 }}>
+                <Fld label="Quantity"  type="number" value={form.qty}  onChange={v => setForm({...form,qty:v})}/>
+                <Fld label="Min Stock" type="number" value={form.min}  onChange={v => setForm({...form,min:v})}/>
+                <Fld label="Unit" value={form.unit} onChange={v => setForm({...form,unit:v})} placeholder="pcs, kg…"/>
+              </div>
+              <div style={{ display:"flex",gap:8,marginTop:6 }}><Btn v="primary" onClick={save}><Icon name="Check" size={13}/>{editId?"Save Changes":"Add Item"}</Btn><Btn v="ghost" onClick={() => { setShowAdd(false); setEditId(null); }}>Cancel</Btn></div>
+            </Modal>
+          )}
+          <Card title="Purchase / Restock History">
+            {recentHistory.length
+              ? recentHistory.map(h => <div key={h.id} style={{ display:"grid",gridTemplateColumns:"1fr 90px 120px",gap:10,padding:"8px 0",borderBottom:`1px solid ${SURF2}`,fontSize:12,alignItems:"center" }}><div><div style={{ color:T1 }}>{h.itemName}</div><div style={{ color:T3,fontSize:10 }}>{new Date(h.time).toLocaleString("en-PH")} · {h.note}</div></div><div style={{ color:h.qty<0?"#DC4444":"#22C27A",fontWeight:700 }}>{h.qty>0?"+":""}{h.qty} {BAR_RECIPE_UNITS[h.unit]||h.unit}</div><Badge s={h.type==="consumption"?"served":"done"} label={h.type}/></div>)
+              : <div style={{ color:T3,fontSize:13,textAlign:"center",padding:"14px 0" }}>No stock movement yet</div>
+            }
+          </Card>
+        </div>
+      );
+    }
+
+    // ── Total System Revenue Panel ───────────────────────────────
+    // BUG-09 FIX: every accumulator uses isFinite guards to prevent NaN propagation
+    // from corrupt cloud sync data. calcTotal now uses safeArray internally (BUG-06 fix).
+    function TotalSystemRevenuePanel({ rooms, orders, orderHistory, cruises }) {
+      const roomRevenue = useMemo(() =>
+        safeArray(rooms).filter(r => r.status === 'occupied')
+          .reduce((s, r) => s + (Number.isFinite(r.rate) ? r.rate : 0), 0),
+        [rooms]
+      );
+      const activeFnBRevenue = useMemo(() =>
+        safeArray(orders).reduce((s, o) => {
+          const t = calcTotal(o.items);
+          return s + (Number.isFinite(t) ? t : 0);
+        }, 0),
+        [orders]
+      );
+      const settledFnBRevenue = useMemo(() =>
+        safeArray(orderHistory).reduce((s, o) => {
+          const t = calcTotal(o.items);
+          return s + (Number.isFinite(t) ? t : 0);
+        }, 0),
+        [orderHistory]
+      );
+      const cruiseRevenue = useMemo(() =>
+        safeArray(cruises).reduce((s, c) => s + (Number.isFinite(c.cost) ? c.cost : 0), 0),
+        [cruises]
+      );
+      const grossTotal = roomRevenue + activeFnBRevenue + settledFnBRevenue + cruiseRevenue;
+
+      const streams = [
+        { label: 'Room Check-In Revenue',      icon: '🏨', value: roomRevenue,        color: '#4B8BF5',  sub: `${rooms.filter(r=>r.status==='occupied').length} occupied room(s)` },
+        { label: 'Active Restaurant Orders',   icon: '🍽️', value: activeFnBRevenue,   color: '#D4A036',  sub: `${orders.length} unbilled order(s)` },
+        { label: 'Settled F&B History Sales',  icon: '🧾', value: settledFnBRevenue,  color: '#22C27A',  sub: `${orderHistory.length} billed order(s)` },
+        { label: 'Lake Cruise Revenue',        icon: '⛵', value: cruiseRevenue,       color: '#0891B2',  sub: `${cruises.length} cruise trip(s) logged` },
+      ];
+
+      return (
+        <div style={{ background: SURF, border: `2px solid ${ACC}22`, borderRadius: 16, padding: '20px 22px', marginBottom: 20, boxShadow: '0 2px 12px rgba(0,122,0,0.07)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 6, height: 24, background: ACC, borderRadius: 3 }} />
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 18, fontWeight: 700, color: T1 }}>📊 Total System Revenue Breakdown</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 10, marginBottom: 16 }}>
+            {streams.map(s => (
+              <div key={s.label} style={{ background: SURF2, borderRadius: 12, padding: '14px 16px', borderLeft: `3px solid ${s.color}` }}>
+                <div style={{ fontSize: 10, color: T3, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 5, fontWeight: 600 }}>{s.icon} {s.label}</div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 26, fontWeight: 700, color: s.color, lineHeight: 1 }}>₱{s.value.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: T3, marginTop: 5 }}>{s.sub}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: `linear-gradient(135deg, ${ACC}18, ${ACC}08)`, border: `1.5px solid ${ACC}44`, borderRadius: 12, padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <div style={{ fontSize: 10, color: T3, textTransform: 'uppercase', letterSpacing: '1.5px', fontWeight: 700, marginBottom: 3 }}>💰 Combined Gross Revenue</div>
+              <div style={{ fontSize: 11, color: T3 }}>Room + Active F&B + Billed F&B + Cruise</div>
+            </div>
+            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 38, fontWeight: 700, color: ACC, lineHeight: 1 }}>₱{grossTotal.toLocaleString()}</div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Order History & Revenue Report ───────────────────────────
+    function OrderHistoryView({ orderHistory, setOrderHistory, rooms, orders, cruises }) {
+      const [statusFilter, setStatusFilter] = useState("all");
+      const [dateRange,    setDateRange]    = useState("today");
+      const [fromDate,     setFromDate]     = useState(today);
+      const [toDate,       setToDate]       = useState(today);
+      const [search,       setSearch]       = useState("");
+
+      const getStartOfWeek = () => {
+        const d = new Date(); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d;
+      };
+      const getStartOfMonth = () => {
+        const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d;
+      };
+
+      const inDateRange = (billedAt) => {
+        if (!billedAt) return false;
+        const d = new Date(billedAt);
+        if (dateRange === 'today')  return d.toDateString() === new Date().toDateString();
+        if (dateRange === 'week')   return d >= getStartOfWeek();
+        if (dateRange === 'month')  return d >= getStartOfMonth();
+        if (dateRange === 'custom' && fromDate && toDate) {
+          return d >= new Date(fromDate + 'T00:00:00') && d <= new Date(toDate + 'T23:59:59');
+        }
+        return true;
+      };
+
+      const shown = useMemo(() => {
+        let list = safeArray(orderHistory).slice().reverse();
+        if (dateRange !== 'all') list = list.filter(o => inDateRange(o.billedAt));
+        if (statusFilter !== "all") list = list.filter(o => o.status === statusFilter);
+        if (search.trim()) {
+          const q = search.trim().toLowerCase();
+          list = list.filter(o => {
+            const tableStr = String(o.tableId);
+            if (tableStr.includes(q) || `table ${tableStr}`.includes(q)) return true;
+            return o.items.some(i => getMenuItem(i.mid).name.toLowerCase().includes(q));
+          });
+        }
+        return list;
+      }, [orderHistory, dateRange, fromDate, toDate, statusFilter, search]);
+
+      const shownRevenue  = shown.reduce((s, o) => s + calcTotal(o.items), 0);
+      const avgPerBill    = shown.length ? Math.round(shownRevenue / shown.length) : 0;
+      const todayOrders   = safeArray(orderHistory).filter(o => o.billedAt && o.billedAt.startsWith(today));
+      const todayRev      = todayOrders.reduce((s, o) => s + calcTotal(o.items), 0);
+
+      const topItems = useMemo(() => {
+        const tally = {};
+        shown.forEach(o => o.items.forEach(i => {
+          const m = getMenuItem(i.mid);
+          if (!m || m.price === 0) return;
+          if (!tally[i.mid]) tally[i.mid] = { name:m.name, qty:0, rev:0 };
+          tally[i.mid].qty += i.qty;
+          tally[i.mid].rev += m.price * i.qty;
+        }));
+        return Object.values(tally).sort((a,b) => b.rev - a.rev).slice(0, 5);
+      }, [shown]);
+
+      const RANGE_LABELS = { today:'Today', week:'This Week', month:'This Month', custom:'Custom', all:'All Time' };
+
+      return (
+        <div>
+          <TotalSystemRevenuePanel rooms={rooms} orders={orders} orderHistory={orderHistory} cruises={cruises} />
+          <div className="dashboard-stats" style={{ marginBottom:18 }}>
+            <StatCard label="Total Archived" value={orderHistory.length} sub="All time" color={T2}/>
+            <StatCard label="Today's Revenue" value={`₱${todayRev.toLocaleString()}`} sub={`${todayOrders.length} bills closed`} color="#22C27A"/>
+            <StatCard label={`${RANGE_LABELS[dateRange]} Revenue`} value={`₱${shownRevenue.toLocaleString()}`} sub={`${shown.length} orders · avg ₱${avgPerBill.toLocaleString()}`} color={ACC}/>
+          </div>
+
+          <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:"14px 16px",marginBottom:14 }}>
+            <div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:10 }}>📅 Revenue Report Period</div>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom: dateRange==='custom'?12:0 }}>
+              {['today','week','month','all','custom'].map(r => (
+                <button key={r} onClick={() => setDateRange(r)}
+                  style={{ padding:"6px 14px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif",
+                    fontWeight:dateRange===r?700:400,
+                    background:dateRange===r?ACC:SURF2,
+                    color:dateRange===r?BG:T3 }}>
+                  {RANGE_LABELS[r]}
+                </button>
+              ))}
+            </div>
+            {dateRange === 'custom' && (
+              <div style={{ display:"flex",gap:10,alignItems:"center",marginTop:10,flexWrap:"wrap" }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  <span style={{ fontSize:11,color:T3,whiteSpace:"nowrap" }}>From</span>
+                  <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)}
+                    style={{ background:SURF2,border:`1px solid ${BORD}`,color:T1,padding:"6px 10px",borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none" }}/>
+                </div>
+                <div style={{ display:"flex",alignItems:"center",gap:6 }}>
+                  <span style={{ fontSize:11,color:T3,whiteSpace:"nowrap" }}>To</span>
+                  <input type="date" value={toDate} onChange={e => setToDate(e.target.value)}
+                    style={{ background:SURF2,border:`1px solid ${BORD}`,color:T1,padding:"6px 10px",borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none" }}/>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {topItems.length > 0 && (
+            <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:12,padding:"14px 16px",marginBottom:14 }}>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:600,color:ACC,marginBottom:12 }}>🏆 Top Items — {RANGE_LABELS[dateRange]}</div>
+              {topItems.map((item, idx) => {
+                const pct = Math.round((item.rev / shownRevenue) * 100);
+                return (
+                  <div key={item.name} style={{ display:"flex",alignItems:"center",gap:10,marginBottom:10 }}>
+                    <div style={{ width:18,fontSize:11,fontWeight:700,color:idx===0?ACC:T3,textAlign:"center" }}>#{idx+1}</div>
+                    <div style={{ flex:1,minWidth:0 }}>
+                      <div style={{ display:"flex",justifyContent:"space-between",marginBottom:3 }}>
+                        <span style={{ fontSize:12,color:T1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{item.name}</span>
+                        <span style={{ fontSize:12,color:ACC,fontWeight:700,flexShrink:0,marginLeft:8 }}>₱{item.rev.toLocaleString()}</span>
+                      </div>
+                      <div style={{ background:BORD,borderRadius:4,height:4,overflow:"hidden" }}>
+                        <div style={{ width:`${pct}%`,background:idx===0?ACC:T3,height:"100%",borderRadius:4,opacity:0.8 }}/>
+                      </div>
+                    </div>
+                    <div style={{ fontSize:11,color:T3,flexShrink:0,width:40,textAlign:"right" }}>{item.qty}×</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ display:"flex",gap:10,marginBottom:14,flexWrap:"wrap",alignItems:"center" }}>
+            <div style={{ display:"flex",gap:5 }}>
+              {["all","billed","end-of-day"].map(f => (
+                <button key={f} onClick={() => setStatusFilter(f)}
+                  style={{ padding:"5px 12px",borderRadius:20,border:"none",cursor:"pointer",fontSize:12,
+                    fontFamily:"'DM Sans',sans-serif",background:statusFilter===f?ACC:SURF2,
+                    color:statusFilter===f?BG:T3,fontWeight:statusFilter===f?600:400,textTransform:"capitalize" }}>
+                  {f === "all" ? "All Statuses" : f}
+                </button>
+              ))}
+            </div>
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search table # or item…"
+              style={{ background:SURF2,border:`1px solid ${BORD}`,color:T1,padding:"6px 12px",borderRadius:8,fontFamily:"'DM Sans',sans-serif",fontSize:12,outline:"none",flex:1,minWidth:160 }}/>
+            {orderHistory.length > 0 && (
+              <button onClick={() => { if (window.confirm('Clear all order history? This cannot be undone.')) setOrderHistory([]); }}
+                style={{ background:"rgba(220,68,68,0.1)",border:"1px solid rgba(220,68,68,0.2)",color:"#DC4444",borderRadius:8,padding:"5px 12px",fontSize:11,cursor:"pointer",fontFamily:"'DM Sans',sans-serif" }}>
+                Clear History
+              </button>
+            )}
+          </div>
+
+          {shown.length === 0 ? (
+            <div style={{ textAlign:"center",padding:"50px 0",color:T3 }}>
+              <Icon name="History" size={32} color={T3}/>
+              <div style={{ marginTop:12,fontSize:14 }}>No orders match the selected period</div>
+              <div style={{ fontSize:12,marginTop:6 }}>{dateRange === 'all' ? 'Bills close here automatically when staff taps "Bill Out"' : `Try switching to "All Time" or adjusting the date range.`}</div>
+            </div>
+          ) : (
+            shown.map(o => {
+              const knownItems   = o.items.filter(i => getMenuItem(i.mid).price > 0);
+              const deletedItems = o.items.filter(i => getMenuItem(i.mid).price === 0);
+              const total = calcTotal(o.items);
+              return (
+                <div key={o.id} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:10,padding:14,marginBottom:8 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8 }}>
+                    <div>
+                      <div style={{ fontWeight:600,color:T1,fontSize:14 }}>Table {o.tableId || '–'}</div>
+                      <div style={{ fontSize:11,color:T3,marginTop:2 }}>
+                        Opened: {o.time} &nbsp;·&nbsp; Closed: {o.billedAt ? new Date(o.billedAt).toLocaleTimeString("en-PH",{hour:"2-digit",minute:"2-digit"}) : '–'} &nbsp;·&nbsp; {o.billedAt ? new Date(o.billedAt).toLocaleDateString("en-PH",{month:"short",day:"numeric",year:"numeric"}) : ''}
+                      </div>
+                    </div>
+                    <div style={{ display:"flex",alignItems:"center",gap:8 }}>
+                      <span style={{ color:ACC,fontWeight:700,fontSize:15 }}>₱{total.toLocaleString()}{deletedItems.length > 0 ? <span title="Some items were removed from the menu" style={{ color:T3,fontWeight:400,fontSize:11 }}> +?</span> : null}</span>
+                      <Badge s={o.status}/>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex",flexWrap:"wrap",gap:"4px 12px" }}>
+                    {knownItems.map(item => { const m = getMenuItem(item.mid); return <span key={item.mid} style={{ fontSize:11,color:T3 }}>{item.qty}× {m.name}</span>; })}
+                    {deletedItems.map(item => <span key={item.mid} style={{ fontSize:11,color:T3,fontStyle:'italic',opacity:0.6 }}>{item.qty}× (deleted item)</span>)}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      );
+    }
+
+    // ── Info ──────────────────────────────────────────────────────
+    function InfoView() {
+      const RATES = [
+        { type:"For 2 / AC",    color:"#4B8BF5", rooms:[{name:"Cuarto 7 & 8",rate:"₱1,450"},{name:"Casita 1, 2 & 3",rate:"₱1,450"}] },
+        { type:"For 3 / AC",    color:"#22C2D4", rooms:[{name:"Cuarto 5 & 6",rate:"₱2,175"}] },
+        { type:"For 4-5 / AC",  color:"#A066D3", rooms:[{name:"Barkada 3 & 4 (5 pax)",rate:"₱3,750"},{name:"Casa Vista (4 pax)",rate:"₱3,750"}] },
+        { type:"For 6-12",      color:"#D4A036", rooms:[{name:"Barkada 1 (6 pax)",rate:"₱4,450"},{name:"Pasilungan (8 pax)",rate:"₱4,000"},{name:"Barkada 2 (10 pax)",rate:"₱6,000"},{name:"Casa Fuerte (7 pax)",rate:"₱5,600"}] },
+        { type:"For 16-20 / AC",color:ACC,       rooms:[{name:"Pahuwayan (20 pax)",rate:"₱12,000"},{name:"Nanay 1 (16 pax)",rate:"₱8,200"}] },
+      ];
+      const AMENITIES = ["Breakfast","Entrance","Pool Access","WiFi"];
+      const SERVICES  = ["Versatile Function Hall","Lake View Accommodations","On-site Restaurant","Events & Gatherings","Scenic Lake Cruise — starts at ₱1,500 (20 pax)"];
+      const STEPS = [
+        { n:1, label:"Open Supabase Dashboard", detail:"Go to supabase.com → Log in → open your project." },
+        { n:2, label:"Database → Replication", detail:'In the left sidebar, click "Database", then "Replication".' },
+        { n:3, label:'Find "supabase_realtime"', detail:"You will see a publication called supabase_realtime. Click the table count next to it." },
+        { n:4, label:'Toggle on "resort_state"', detail:'Find the resort_state table in the list and flip the toggle to ON. Click Save.' },
+        { n:5, label:"Done — live sync active", detail:"Changes on any device now appear on all other devices within seconds. No page refresh needed." },
+      ];
+      return (
+        <div style={{ display:"flex",flexDirection:"column",gap:14 }}>
+          <Card title="Accommodation Rates">
+            {RATES.map(g => (
+              <div key={g.type} style={{ marginBottom:14 }}>
+                <div style={{ fontSize:10,fontWeight:700,textTransform:"uppercase",letterSpacing:"1px",color:g.color,marginBottom:7,paddingBottom:5,borderBottom:`1px solid ${g.color}22` }}>{g.type}</div>
+                {g.rooms.map(r => (
+                  <div key={r.name} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"5px 0",fontSize:13 }}>
+                    <span style={{ color:T2 }}>{r.name}</span>
+                    <span style={{ color:ACC,fontWeight:600,fontFamily:"'Cormorant Garamond',serif",fontSize:15 }}>{r.rate}</span>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </Card>
+          <div className="two-col-grid">
+            <Card title="Inclusions & Amenities">
+              <div style={{ display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:11,fontWeight:700,color:"#22C27A",background:"rgba(34,194,122,0.12)",marginBottom:12,letterSpacing:"0.5px" }}>FREE WITH STAY</div>
+              {AMENITIES.map(a => (<div key={a} style={{ display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:`1px solid ${SURF2}`,fontSize:13,color:T2 }}><Icon name="Check" size={13} color="#22C27A"/>{a}</div>))}
+            </Card>
+            <Card title="Our Services">
+              {SERVICES.map(s => (<div key={s} style={{ display:"flex",alignItems:"flex-start",gap:8,padding:"6px 0",borderBottom:`1px solid ${SURF2}`,fontSize:13,color:T2 }}><div style={{ width:5,height:5,borderRadius:"50%",background:ACC,marginTop:6,flexShrink:0 }}/><span>{s}</span></div>))}
+            </Card>
+            <Card title="Contact & Location">
+              <div style={{ marginBottom:14 }}><div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:6 }}>Phone</div><div style={{ fontSize:13,color:T1,marginBottom:3 }}>09171496795</div><div style={{ fontSize:13,color:T1 }}>09298986391</div></div>
+              <div style={{ marginBottom:14 }}><div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:6 }}>Facebook</div><div style={{ fontSize:13,color:"#4B8BF5" }}>Sa Balai Lake View Resort</div></div>
+              <div><div style={{ fontSize:10,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:6 }}>Location</div><div style={{ fontSize:13,color:T1,lineHeight:1.5 }}>Sitio Lamsufo, Pob.<br/>Lake Sebu, South Cotabato</div></div>
+            </Card>
+
+            <Card title="☁️ Enable Live Multi-Device Sync">
+              <p style={{ fontSize:12,color:T3,marginBottom:14,lineHeight:1.6 }}>The app already auto-saves to the cloud. To also see changes from other devices <em>instantly</em> (without pressing "Pull latest"), enable Supabase Replication in 5 steps:</p>
+              {STEPS.map(s => (
+                <div key={s.n} style={{ display:"flex",gap:12,padding:"10px 0",borderBottom:`1px solid ${SURF2}`,alignItems:"flex-start" }}>
+                  <div style={{ width:24,height:24,borderRadius:"50%",background:"rgba(75,139,245,0.15)",border:"1px solid rgba(75,139,245,0.3)",color:"#4B8BF5",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{s.n}</div>
+                  <div>
+                    <div style={{ fontSize:13,color:T1,fontWeight:500,marginBottom:3 }}>{s.label}</div>
+                    <div style={{ fontSize:11,color:T3,lineHeight:1.5 }}>{s.detail}</div>
+                  </div>
+                </div>
+              ))}
+              <div style={{ marginTop:14,background:"rgba(75,139,245,0.06)",border:"1px solid rgba(75,139,245,0.2)",borderRadius:9,padding:"10px 13px",fontSize:11,color:T2,lineHeight:1.6 }}>
+                <strong style={{ color:"#4B8BF5" }}>Alternative (SQL):</strong> Run this in the Supabase SQL editor:<br/>
+                <code style={{ fontFamily:"monospace",color:T1,background:SURF2,padding:"3px 6px",borderRadius:4,display:"inline-block",marginTop:4 }}>ALTER PUBLICATION supabase_realtime ADD TABLE resort_state;</code>
+              </div>
+            </Card>
+          </div>
+        </div>
+      );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MAIN APP
+    // ══════════════════════════════════════════════════════════════
+    function ResortApp() {
+      const savedRef = useRef(loadFromStorage());
+      const [rooms,        setRooms]        = useState(() => savedRef.current?.rooms        || initRooms);
+      const [tables,       setTables]       = useState(() => savedRef.current?.tables       || initTables);
+      const [orders,       setOrders]       = useState(() => savedRef.current?.orders       || initOrders);
+      const [orderHistory, setOrderHistory] = useState(() => savedRef.current?.orderHistory || initOrderHistory);
+      const [inventory,    setInventory]    = useState(() => savedRef.current?.inventory    || initInventory);
+      const [stockHistory, setStockHistory] = useState(() => savedRef.current?.stockHistory || initStockHistory);
+      const [pool,         setPool]         = useState(() => savedRef.current?.pool         || initPool);
+      const [cruises,      setCruises]      = useState(() => savedRef.current?.cruises      || []);
+
+      const [tab,        setTab]        = useState("dashboard");
+      const [role,       setRole]       = useState("Manager");
+      const [toast,      setToast]      = useState(null);
+      const [eodConfirm, setEodConfirm] = useState(false);
+      const [darkMode,   setDarkMode]   = useState(() => localStorage.getItem('saBalaiDark') === '1');
+      const importRef = useRef();
+
+      BG    = darkMode ? "#0C1A0C" : "#F8FAF8";
+      SURF  = darkMode ? "#132113" : "#FFFFFF";
+      SURF2 = darkMode ? "#1A2D1A" : "#F2F5F2";
+      BORD  = darkMode ? "#243624" : "#E2EAE2";
+      ACC   = darkMode ? "#5DBD5D" : "#007A00";
+      T1    = darkMode ? "#EEF5EE" : "#003E00";
+      T2    = darkMode ? "#8BB88B" : "#2D5A2D";
+      T3    = darkMode ? "#527852" : "#7A9E7A";
+      SYNC_DOT = { idle: darkMode?'#527852':'#7A9E7A', syncing:'#2563EB', synced: darkMode?'#5DBD5D':'#007A00', offline:'#B8860B', error:'#C0392B', unconfigured: darkMode?'#527852':'#7A9E7A' };
+      SC = {
+        available:   { fg: darkMode?"#5DBD5D":"#007A00", bg: darkMode?"rgba(93,189,93,0.14)" :"rgba(0,122,0,0.08)"        },
+        occupied:    { fg: darkMode?"#E05C5C":"#C0392B", bg: darkMode?"rgba(224,92,92,0.14)" :"rgba(192,57,43,0.08)"      },
+        reserved:    { fg: darkMode?"#D4A036":"#B8860B", bg: darkMode?"rgba(212,160,54,0.14)":"rgba(184,134,11,0.08)"     },
+        maintenance: { fg: darkMode?"#8FA0B0":"#64748B", bg: darkMode?"rgba(143,160,176,0.14)":"rgba(100,116,139,0.08)"  },
+        preparing:   { fg: darkMode?"#5B8EEB":"#2563EB", bg: darkMode?"rgba(91,142,235,0.14)":"rgba(37,99,235,0.08)"      },
+        serving:     { fg: darkMode?"#9B6AE8":"#7C3AED", bg: darkMode?"rgba(155,106,232,0.14)":"rgba(124,58,237,0.08)"   },
+        served:      { fg: darkMode?"#5DBD5D":"#007A00", bg: darkMode?"rgba(93,189,93,0.14)" :"rgba(0,122,0,0.08)"        },
+        billed:      { fg: darkMode?"#94A3B8":"#94A3B8", bg: darkMode?"rgba(148,163,184,0.14)":"rgba(148,163,184,0.08)"  },
+        done:        { fg: darkMode?"#5DBD5D":"#007A00", bg: darkMode?"rgba(93,189,93,0.14)" :"rgba(0,122,0,0.08)"        },
+        scheduled:   { fg: darkMode?"#D4A036":"#B8860B", bg: darkMode?"rgba(212,160,54,0.14)":"rgba(184,134,11,0.08)"    },
+        'end-of-day':{ fg: darkMode?"#8FA0B0":"#64748B", bg: darkMode?"rgba(143,160,176,0.14)":"rgba(100,116,139,0.08)" },
+      };
+
+      useEffect(() => {
+        localStorage.setItem('saBalaiDark', darkMode ? '1' : '0');
+        document.body.style.background = darkMode ? '#0C1A0C' : '#F8FAF8';
+        document.body.style.color      = darkMode ? '#EEF5EE' : '#003E00';
+      }, [darkMode]);
+
+      const [syncStatus, setSyncStatus] = useState(isConfigured ? 'idle' : 'unconfigured');
+      const [lastSynced, setLastSynced] = useState(null);
+      const [isOnline,   setIsOnline]   = useState(navigator.onLine);
+      const syncTimerRef      = useRef(null);
+      const toastTimerRef     = useRef(null);
+      const stateRef          = useRef({ rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises });
+      const localSavedAtRef   = useRef(savedRef.current?._savedAt || null);
+      const storageHydratedRef= useRef(false);
+      const lastSyncedDataRef = useRef("");
+      const hasPulledRef      = useRef(false);
+
+      const showToast = useCallback((msg, color='#22C27A') => {
+        setToast({ msg, color });
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setToast(null), 3500);
+      }, []);
+
+      useEffect(() => {
+        stateRef.current = { rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises };
+      }, [rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises]);
+
+      useEffect(() => () => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        if (syncTimerRef.current)  clearTimeout(syncTimerRef.current);
+      }, []);
+
+      const doSync = useCallback(async (state) => {
+        if (!isConfigured || !navigator.onLine) return;
+        try {
+          const normalized = normalizeState(state);
+          if (!normalized) return;
+          setSyncStatus('syncing');
+          await saveToCloud(normalized);
+          lastSyncedDataRef.current = createStateSnapshot(normalized);
+          setLastSynced(new Date().toISOString());
+          setSyncStatus('synced');
+        } catch(e) { console.error('Sync error:', e.message); setSyncStatus('error'); }
+      }, []);
+
+      const pullFromCloud = useCallback(async (silent = false) => {
+        if (!isConfigured || !navigator.onLine) { setSyncStatus('offline'); return; }
+        try {
+          setSyncStatus('syncing');
+          const cloud = await fetchFromCloud();
+          if (cloud?.data) {
+            const normalized = normalizeState(cloud.data);
+            if (!normalized) throw new Error('Cloud data is malformed');
+            const cloudUpdatedAt = cloud.updated_at ? new Date(cloud.updated_at).getTime() : 0;
+            const localUpdatedAt = localSavedAtRef.current ? new Date(localSavedAtRef.current).getTime() : 0;
+            if (silent && localUpdatedAt > cloudUpdatedAt) { await doSync(stateRef.current); hasPulledRef.current = true; return; }
+            setRooms(normalized.rooms); setTables(normalized.tables); setOrders(normalized.orders);
+            setOrderHistory(normalized.orderHistory); setInventory(normalized.inventory);
+            setStockHistory(normalized.stockHistory); setPool(normalized.pool);
+            setCruises(normalized.cruises || []);
+            lastSyncedDataRef.current = createStateSnapshot(normalized);
+            setLastSynced(cloud.updated_at); setSyncStatus('synced');
+            if (!silent) showToast('✅ Latest data pulled from cloud.', '#22C27A');
+          } else {
+            await doSync(stateRef.current); setLastSynced(new Date().toISOString()); setSyncStatus('synced');
+            if (!silent) showToast('☁️ First sync complete — data saved to cloud.', ACC);
+          }
+          hasPulledRef.current = true;
+        } catch(e) { console.error('Pull error:', e.message); setSyncStatus('error'); if (!silent) showToast('❌ Could not reach cloud.', '#DC4444'); }
+      }, [showToast, doSync]);
+
+      useEffect(() => {
+        if (!isConfigured) return;
+        if (!navigator.onLine) { setSyncStatus('offline'); return; }
+        pullFromCloud(true);
+      }, []);
+
+      useEffect(() => {
+        if (!db) return;
+        const channel = db.channel(`sabalai_realtime_${RECORD_ID}`)
+          .on('postgres_changes', { event:'*', schema:'public', table:'resort_state', filter:`id=eq.${RECORD_ID}` }, (payload) => {
+            if (payload.new?.last_session === SESSION_ID) return;
+            const normalized = normalizeState(payload.new?.data);
+            if (!normalized) return;
+            const remoteAt = payload.new?.updated_at ? new Date(payload.new.updated_at).getTime() : Date.now();
+            const localAt  = localSavedAtRef.current ? new Date(localSavedAtRef.current).getTime() : 0;
+            if (localAt > remoteAt) return;
+            setRooms(normalized.rooms); setTables(normalized.tables); setOrders(normalized.orders);
+            setOrderHistory(normalized.orderHistory); setInventory(normalized.inventory);
+            setStockHistory(normalized.stockHistory); setPool(normalized.pool);
+            setCruises(normalized.cruises || []);
+            lastSyncedDataRef.current = createStateSnapshot(normalized);
+            setLastSynced(payload.new?.updated_at || new Date().toISOString()); setSyncStatus('synced');
+          })
+          .subscribe();
+        return () => db.removeChannel(channel);
+      }, []);
+
+      useEffect(() => {
+        const goOnline  = () => { setIsOnline(true); showToast('🌐 Back online — syncing…','#4B8BF5'); doSync(stateRef.current); };
+        const goOffline = () => { setIsOnline(false); setSyncStatus('offline'); showToast('📴 Offline — changes saved locally.','#D4A036'); };
+        window.addEventListener('online', goOnline); window.addEventListener('offline', goOffline);
+        return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline); };
+      }, [doSync, showToast]);
+
+      useEffect(() => {
+        if (!storageHydratedRef.current) { storageHydratedRef.current = true; return; }
+        localSavedAtRef.current = new Date().toISOString();
+        saveToStorage({ rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises });
+      }, [rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises]);
+
+      useEffect(() => {
+        if (!isConfigured || !navigator.onLine) return;
+        if (!hasPulledRef.current) return;
+        const currentStr = createStateSnapshot({ rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises });
+        if (currentStr === lastSyncedDataRef.current) return;
+        if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = setTimeout(() => { doSync({ rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises }); }, 1500);
+        return () => clearTimeout(syncTimerRef.current);
+      }, [rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises, doSync]);
+
+      const eodStats = useMemo(() => ({
+        activeOrders: orders.filter(o => !["billed"].includes(o.status)).length,
+        occupiedTables: tables.filter(t => t.status !== "available").length,
+        poolGuests: pool.curGuests,
+        cruiseTrips: cruises.filter(c => c.date === today).length
+      }), [orders, tables, pool, cruises]);
+
+      // BUG-08 FIX: handleEndOfDay reads fresh orders via functional setter chain instead
+      // of stale closure. setOrders(prev=>) receives the absolute latest orders array
+      // regardless of how long the EOD confirm dialog was open.
+      const handleEndOfDay = () => {
+        const now = new Date().toISOString();
+        setOrders(prevOrders => {
+          const openOrders = prevOrders.filter(o => o.status !== "billed");
+          if (openOrders.length > 0) {
+            setOrderHistory(prev => [
+              ...prev,
+              ...openOrders.map(o => ({ ...o, status: "end-of-day", billedAt: now }))
+            ]);
+          }
+          return []; // wipe the active orders slate
+        });
+        setTables(prev => prev.map(t => ({ ...t, status: "available", res: null })));
+        setPool(prev => ({ ...prev, curGuests: 0, passes: [] }));
+        setCruises([]);
+        setEodConfirm(false);
+        showToast(`✅ End of Day complete. Register slate refreshed cleanly.`, '#007A00');
+      };
+
+      const handleExport = () => { exportBackup({ rooms, tables, orders, orderHistory, inventory, stockHistory, pool, cruises }); showToast('✅ Backup downloaded!', ACC); };
+      const handleImport = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        importBackup(file, (data) => {
+          const normalized = normalizeState(data); if (!normalized) { alert('Invalid backup file.'); return; }
+          setRooms(normalized.rooms); setTables(normalized.tables); setOrders(normalized.orders);
+          setOrderHistory(normalized.orderHistory); setInventory(normalized.inventory);
+          setStockHistory(normalized.stockHistory); setPool(normalized.pool);
+          setCruises(normalized.cruises || []);
+          lastSyncedDataRef.current = ''; showToast('✅ Backup restored!', '#007A00');
+        });
+        e.target.value = '';
+      };
+
+      const nav = [
+        { id:"dashboard",  label:"Dashboard", icon:"LayoutDashboard" },
+        { id:"hotel",      label:"Hotel",     icon:"BedDouble" },
+        { id:"restaurant", label:"Restaurant",icon:"UtensilsCrossed" },
+        { id:"pool",       label:"Pool",      icon:"Waves" },
+        { id:"cruise",     label:"Lake Cruise",icon:"Ship" },
+        { id:"inventory",  label:"Inventory", icon:"Package" },
+        { id:"history",    label:"History",   icon:"History" },
+        { id:"info",       label:"Info",      icon:"Info" },
+      ];
+      const access = (t) => {
+        if (role === "Manager")          return true;
+        if (role === "Front Desk")       return ["dashboard","hotel","pool","cruise","info"].includes(t);
+        if (role === "Restaurant Staff") return ["dashboard","restaurant","history","info"].includes(t);
+        if (role === "Housekeeping")     return ["dashboard","hotel","inventory","info"].includes(t);
+        return false;
+      };
+      const titles = { dashboard:"Dashboard", hotel:"Hotel Rooms", restaurant:"Restaurant", pool:"Pool", cruise: "Lake Cruise Reservations", inventory:"Inventory", history:"Order History", info:"Resort Info" };
+
+      return (
+        <div className="app-shell" style={{ background:BG, color:T1 }}>
+          {toast && (
+            <div style={{ position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:SURF,border:`1px solid ${toast.color}44`,borderRadius:12,padding:"11px 22px",fontSize:13,color:T1,zIndex:9999,boxShadow:"0 8px 32px rgba(0,62,0,0.12),0 2px 8px rgba(0,62,0,0.06)",whiteSpace:"nowrap",fontWeight:500,maxWidth:"90vw",display:"flex",alignItems:"center",gap:8,animation:"fadeSlideUp 0.2s ease" }}>
+              <div style={{ width:7,height:7,borderRadius:"50%",background:toast.color,flexShrink:0 }}/>
+              {toast.msg}
+            </div>
+          )}
+
+          <div className="sidebar" style={{ background:SURF, borderRight:`1px solid ${BORD}` }}>
+            <div style={{ padding:"22px 18px 16px", borderBottom:`1px solid ${BORD}`, background:SURF }}>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:15,fontWeight:700,color:T1,letterSpacing:"0.2px",lineHeight:1.3 }}>Sa Balai Lake View Resort</div>
+              <div style={{ fontSize:11,color:T3,marginTop:3,fontStyle:"italic",opacity:0.9 }}>A Taste of Your Own Home</div>
+              <div style={{ width:28,height:1.5,background:ACC,borderRadius:1,marginTop:10,opacity:0.45 }}/>
+            </div>
+            <div style={{ padding:"10px 14px",borderBottom:`1px solid ${BORD}`,background:SURF }}>
+              <div style={{ fontSize:9,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:5,fontWeight:600 }}>Staff Role</div>
+              <select value={role} onChange={e => { setRole(e.target.value); setTab("dashboard"); }}
+                style={{ background:SURF2,border:`1px solid ${BORD}`,color:T1,padding:"7px 10px",borderRadius:9,fontSize:12,width:"100%",fontFamily:"'DM Sans',sans-serif",outline:"none",cursor:"pointer",appearance:"none",backgroundImage:"url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%237A9E7A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E\")",backgroundRepeat:"no-repeat",backgroundPosition:"right 10px center",paddingRight:28,transition:"border-color 0.15s ease" }}>
+                {ROLES.map(r => <option key={r}>{r}</option>)}
+              </select>
+            </div>
+            <nav style={{ flex:1,padding:"8px 10px",overflowY:"auto",background:SURF }}>
+              {nav.map(({ id, label, icon }) => {
+                const active = tab === id; const ok = access(id);
+                return (
+                  <button key={id} type="button" disabled={!ok} onClick={() => ok && setTab(id)} style={{ display:"flex",alignItems:"center",gap:10,width:"100%",padding:"9px 10px",borderRadius:9,cursor:ok?"pointer":"not-allowed",margin:"1px 0",fontSize:13,fontWeight:active?600:400,background:active?"rgba(0,122,0,0.07)":"transparent",color:active?T1:ok?T2:T3,border:"none",borderLeft:active?`3px solid ${ACC}`:"3px solid transparent",opacity:ok?1:0.28,fontFamily:"'DM Sans',sans-serif",textAlign:"left",transition:"background 0.15s ease,color 0.15s ease" }}>
+                    <Icon name={icon} size={15}/>{label}
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div style={{ padding:"10px 14px",borderTop:`1px solid ${BORD}`,background:SURF }}>
+              <div style={{ fontSize:9,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,fontWeight:600 }}>Cloud Sync</div>
+              {!isConfigured ? (
+                <div style={{ fontSize:10,color:T3,lineHeight:1.7 }}>⚙️ Not configured.<br/><span>Edit SUPABASE_URL &<br/>SUPABASE_KEY in code.</span></div>
+              ) : (
+                <div>
+                  <div style={{ display:"flex",alignItems:"center",gap:7,marginBottom:3 }}>
+                    <div style={{ width:7,height:7,borderRadius:"50%",background:SYNC_DOT[syncStatus],flexShrink:0,animation:syncStatus==='syncing'?'pulse 1s infinite':'none' }}/>
+                    <span style={{ fontSize:11,color:SYNC_DOT[syncStatus],fontWeight:600 }}>{SYNC_LABEL[syncStatus]}</span>
+                  </div>
+                  {lastSynced && <div style={{ fontSize:9,color:T3,marginBottom:6 }}>{timeSince(lastSynced)}</div>}
+                  <button onClick={() => pullFromCloud(false)} style={{ display:"flex",alignItems:"center",gap:5,fontSize:10,color:"#2563EB",background:"rgba(37,99,235,0.06)",border:"1px solid rgba(37,99,235,0.18)",borderRadius:7,padding:"4px 9px",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:500,transition:"background 0.15s ease" }}>
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ animation:syncStatus==='syncing'?'spin 1s linear infinite':'none' }} dangerouslySetInnerHTML={{__html:PATHS.RefreshCw}}/>
+                    Pull latest
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div style={{ padding:"10px 14px",borderTop:`1px solid ${BORD}`,background:SURF }}>
+              <div style={{ fontSize:9,color:T3,textTransform:"uppercase",letterSpacing:"1px",marginBottom:7,fontWeight:600 }}>File Backup</div>
+              <button onClick={handleExport} style={{ display:"flex",alignItems:"center",gap:7,width:"100%",background:SURF2,border:`1px solid ${BORD}`,borderRadius:8,color:T2,padding:"7px 10px",fontSize:11,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",marginBottom:5,fontWeight:500,transition:"background 0.15s ease,border-color 0.15s ease" }}>
+                <Icon name="Download" size={13} color={ACC}/>Export .json backup
+              </button>
+              <button onClick={() => importRef.current.click()} style={{ display:"flex",alignItems:"center",gap:7,width:"100%",background:SURF2,border:`1px solid ${BORD}`,borderRadius:8,color:T2,padding:"7px 10px",fontSize:11,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontWeight:500,transition:"background 0.15s ease,border-color 0.15s ease" }}>
+                <Icon name="Upload" size={13} color="#2563EB"/>Import .json backup
+              </button>
+              <input ref={importRef} type="file" accept=".json" onChange={handleImport} style={{ display:"none" }}/>
+            </div>
+
+            <div style={{ padding:"7px 14px",borderTop:`1px solid ${BORD}`,fontSize:9,color:T3,fontStyle:"italic",background:SURF }}>
+              Sa Balai v2.3 — {isOnline ? '🌐 Online' : '📴 Offline'}
+            </div>
+          </div>
+
+          <div className="main-content" style={{ background:BG }}>
+            <div className="app-header" style={{ background:SURF,borderBottom:`1px solid ${BORD}`,padding:"14px 26px",display:"flex",alignItems:"center",justifyContent:"space-between",flexShrink:0,gap:12 }}>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontWeight:600,color:T1,letterSpacing:"-0.3px" }}>{titles[tab]}</div>
+              <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+                {role === "Manager" && (
+                  <button onClick={() => setEodConfirm(true)} style={{ display:"flex",alignItems:"center",gap:6,background:"rgba(124,58,237,0.07)",border:"1px solid rgba(124,58,237,0.20)",borderRadius:9,color:"#7C3AED",padding:"6px 14px",fontSize:12,fontFamily:"'DM Sans',sans-serif",cursor:"pointer",fontWeight:500,transition:"all 0.15s ease" }}>
+                    <Icon name="Moon" size={13} color="#7C3AED"/>End of Day
+                  </button>
+                )}
+                <div style={{ fontSize:11,color:T3 }}>{new Date().toLocaleDateString("en-PH",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+                <button
+                  onClick={() => setDarkMode(d => !d)}
+                  title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                  style={{ display:"flex",alignItems:"center",gap:7,padding:"5px 12px",borderRadius:20,border:`1px solid ${BORD}`,background:darkMode?"rgba(93,189,93,0.10)":"rgba(0,62,0,0.05)",cursor:"pointer",transition:"all 0.2s ease",flexShrink:0 }}
+                >
+                  <div style={{ width:28,height:16,borderRadius:8,background:darkMode?ACC:BORD,position:"relative",transition:"background 0.2s ease",flexShrink:0 }}>
+                    <div style={{ position:"absolute",top:2,left:darkMode?14:2,width:12,height:12,borderRadius:"50%",background:darkMode?"#0C1A0C":"#FFFFFF",boxShadow:"0 1px 3px rgba(0,0,0,0.25)",transition:"left 0.2s ease" }}/>
+                  </div>
+                  <Icon name={darkMode?"Sun":"Moon"} size={13} color={darkMode?ACC:T3}/>
+                </button>
+              </div>
+            </div>
+            <div className="page-scroll" style={{ background:BG }}>
+              {tab === "dashboard"  && <Dashboard rooms={rooms} tables={tables} orders={orders} inventory={inventory} stockHistory={stockHistory} pool={pool} orderHistory={orderHistory}/>}
+              {tab === "hotel"      && <HotelView rooms={rooms} setRooms={setRooms} pool={pool} setPool={setPool}/>}
+              {tab === "restaurant" && <RestaurantView tables={tables} setTables={setTables} orders={orders} setOrders={setOrders} inventory={inventory} setInventory={setInventory} stockHistory={stockHistory} setStockHistory={setStockHistory} setOrderHistory={setOrderHistory}/>}
+              {tab === "pool"       && <PoolView pool={pool} setPool={setPool}/>}
+              {tab === "cruise"     && <CruiseView cruises={cruises} setCruises={setCruises} />}
+              {tab === "inventory"  && <InventoryView inventory={inventory} setInventory={setInventory} stockHistory={stockHistory} setStockHistory={setStockHistory}/>}
+              {tab === "history"    && <OrderHistoryView orderHistory={orderHistory} setOrderHistory={setOrderHistory} rooms={rooms} orders={orders} cruises={cruises}/>}
+              {tab === "info"       && <InfoView/>}
+            </div>
+          </div>
+
+          {eodConfirm && (
+            <WarningModal
+              title="🌙 End of Day"
+              confirmLabel="Yes, close the day"
+              cancelLabel="Cancel"
+              onConfirm={handleEndOfDay}
+              onCancel={() => setEodConfirm(false)}
+            >
+              <div style={{ background:SURF2,borderRadius:10,padding:"12px 14px",marginBottom:4 }}>
+                <div style={{ fontSize:12,color:T3,marginBottom:10 }}>This will do the following all at once:</div>
+                {[
+                  { label:`Archive ${eodStats.activeOrders} open order(s)`, color:eodStats.activeOrders > 0 ? "#D4A036" : T3 },
+                  { label:`Clear ${eodStats.occupiedTables} table reservation(s)`, color:eodStats.occupiedTables > 0 ? "#D4A036" : T3 },
+                  { label:`Clear pool passes (${eodStats.poolGuests} guests)`, color:eodStats.poolGuests > 0 ? "#22C27A" : T3 },
+                  { label:`Reset Lake Cruise Logbook (${eodStats.cruiseTrips} trips scheduled today)`, color: "#4B8BF5" },
+                  { label:"Room bookings are NOT affected", color:"#22C27A" },
+                  { label:"Inventory levels are NOT changed", color:"#22C27A" },
+                ].map((item, i) => (
+                  <div key={i} style={{ display:"flex",alignItems:"center",gap:8,padding:"5px 0",fontSize:13,color:item.color }}>
+                    <div style={{ width:5,height:5,borderRadius:"50%",background:item.color,flexShrink:0 }}/>
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+            </WarningModal>
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<ResortApp/>);
+  </script>
+</body>
+</html>
